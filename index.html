@@ -131,7 +131,47 @@
         <span class="btn-label">Dick</span>
       </button>
 
-      <!-- ── Farbpalette: 6 Farb-Dots ─────────────────────────── -->
+    
+
+    <!-- ── GRUPPE 3: Sonder-Werkzeuge ───────────────────────────── -->
+    <div class="werkzeug-gruppe" data-gruppe="sonder">
+
+      <!--
+        Textmarker: Halbtransparentes Gelb/Orange.
+        Nutzt CSS mix-blend-mode: multiply für echten Marker-Effekt.
+        Strichbreite: 18px (in app.js konfigurierbar).
+      -->
+      <button
+        id="btn-textmarker"
+        class="werkzeug-btn"
+        data-werkzeug="textmarker"
+        title="Textmarker (gelb-orange)"
+        aria-label="Textmarker"
+        aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 20h9"/>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+        <span class="btn-label">Marker</span>
+      </button>
+
+      <!-- Radiergummi: Entfernt Striche durch Canvas-Composite-Operation -->
+      <button
+        id="btn-radierer"
+        class="werkzeug-btn"
+        data-werkzeug="radierer"
+        title="Radiergummi"
+        aria-label="Radiergummi"
+        aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/>
+          <path d="M6.5 17.5l5-5"/>
+        </svg>
+        <span class="btn-label">Radier</span>
+      </button>
+
+    </div>
+  <!-- ── Farbpalette: 6 Farb-Dots ─────────────────────────── -->
       <!--
         ANPASSEN: Die data-farbe-Attribute und die CSS-Hintergründe
         in style.css unter ".farb-dot" können frei geändert werden.
@@ -189,46 +229,7 @@
 
       </div>
     </div>
-
-    <!-- ── GRUPPE 3: Sonder-Werkzeuge ───────────────────────────── -->
-    <div class="werkzeug-gruppe" data-gruppe="sonder">
-
-      <!--
-        Textmarker: Halbtransparentes Gelb/Orange.
-        Nutzt CSS mix-blend-mode: multiply für echten Marker-Effekt.
-        Strichbreite: 18px (in app.js konfigurierbar).
-      -->
-      <button
-        id="btn-textmarker"
-        class="werkzeug-btn"
-        data-werkzeug="textmarker"
-        title="Textmarker (gelb-orange)"
-        aria-label="Textmarker"
-        aria-pressed="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 20h9"/>
-          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-        </svg>
-        <span class="btn-label">Marker</span>
-      </button>
-
-      <!-- Radiergummi: Entfernt Striche durch Canvas-Composite-Operation -->
-      <button
-        id="btn-radierer"
-        class="werkzeug-btn"
-        data-werkzeug="radierer"
-        title="Radiergummi"
-        aria-label="Radiergummi"
-        aria-pressed="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/>
-          <path d="M6.5 17.5l5-5"/>
-        </svg>
-        <span class="btn-label">Radier</span>
-      </button>
-
-    </div>
-
+    
     <!-- ── GRUPPE 4: Verlauf & Seite ────────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="verlauf">
 
