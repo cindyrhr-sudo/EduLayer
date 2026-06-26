@@ -1,0 +1,759 @@
+/*
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  EduLayer – Stylesheet  (Version 3)                             ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  INHALTSVERZEICHNIS:
+   1.  CSS-Variablen  ← HIER ANPASSEN
+   2.  Reset & Basis
+   3.  Layout (Body, Main, Sidebar)
+   4.  Sidebar-Positionierung links / rechts
+   5.  Sidebar-Inhalte (Logo, Gruppen, Buttons)
+   6.  Farbpalette (8 Dots, 2×4-Grid)
+   7.  Button-Zustände
+   8.  Zoom-Wrapper & Scroll-Modus
+   9.  PDF-Container & Seiten-Layout
+  10.  Zoom-Steuerung
+  11.  Start-Anzeige
+  12.  Spotlight-Overlay & Zugpunkte
+  13.  Toast-Meldungen
+  14.  Lade-Indikator
+  15.  Animationen
+  16.  Barrierefreiheit & Fokus
+  17.  Responsive
+*/
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   1. CSS-VARIABLEN  ← HIER ANPASSEN
+════════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── App-Farben ───────────────────────────────────────────────── */
+  --app-bg:            #1a1f2e;
+  --sidebar-bg:        #0f1219;
+  --sidebar-rand:      #252d42;
+  --akzent:            #4a8cf7;
+  --akzent-dunkel:     #2d6fd4;
+  --gefahr:            #e02020;
+  --text-hell:         #e8ecf4;
+  --text-gedaemmt:     #6b7590;
+  --btn-bg:            #1d2335;
+  --btn-bg-hover:      #28304d;
+  --btn-bg-aktiv:      #162d6a;
+
+  /* ── Spotlight ───────────────────────────────────────────────── */
+  --spotlight-dunkel:  rgba(0, 0, 0, 0.74);
+  --griff-farbe:       rgba(255, 255, 255, 0.90);
+  --griff-groesse:     22px;   /* ← Größe der Zugpunkte anpassen */
+  --griff-radius:      4px;
+
+  /* ── Sidebar ─────────────────────────────────────────────────── */
+  --sidebar-breite:    62px;
+  --sidebar-padding:   7px;
+
+  /* ── Buttons ─────────────────────────────────────────────────── */
+  --btn-groesse:       46px;
+  --btn-radius:        10px;
+  --btn-icon:          20px;
+
+  /* ── Farb-Dots ───────────────────────────────────────────────── */
+  --dot-groesse:       24px;   /* etwas kleiner für 2×4-Grid */
+
+  /* ── Abstände ────────────────────────────────────────────────── */
+  --gruppe-gap:        4px;
+  --gruppe-pad:        6px;
+
+  /* ── Typo ────────────────────────────────────────────────────── */
+  --schrift: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --label-sz: 9px;
+
+  /* ── Übergänge ───────────────────────────────────────────────── */
+  --t-schnell: 110ms ease;
+  --t-normal:  210ms ease;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   2. RESET & BASIS
+════════════════════════════════════════════════════════════════════ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  height: 100%;
+  /* touch-action NICHT none – der Zoom-Wrapper regelt das selbst */
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body {
+  font-family: var(--schrift);
+  background: var(--app-bg);
+  color: var(--text-hell);
+  height: 100dvh;
+  width:  100dvw;
+  overflow: hidden;
+  display: flex;
+  position: fixed;
+  inset: 0;
+  padding-top:    env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   3. LAYOUT-GRUNDSTRUKTUR
+════════════════════════════════════════════════════════════════════ */
+.hauptbereich {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  background: var(--app-bg);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   4. SIDEBAR-POSITIONIERUNG
+════════════════════════════════════════════════════════════════════ */
+.sidebar {
+  width: var(--sidebar-breite);
+  min-width: var(--sidebar-breite);
+  height: 100%;
+  background: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--sidebar-padding) 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  scrollbar-width: none;
+  z-index: 100;
+  flex-shrink: 0;
+  /* Sidebar selbst scrollt per Finger – touch-action erlauben */
+  touch-action: pan-y;
+}
+.sidebar::-webkit-scrollbar { display: none; }
+
+/* Rechts (Standard) */
+[data-sidebar="right"] { flex-direction: row; }
+[data-sidebar="right"] .hauptbereich { order: 0; }
+[data-sidebar="right"] .sidebar {
+  order: 1;
+  border-left: 1px solid var(--sidebar-rand);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Links */
+[data-sidebar="left"] { flex-direction: row; }
+[data-sidebar="left"] .hauptbereich { order: 1; }
+[data-sidebar="left"] .sidebar {
+  order: 0;
+  border-right: 1px solid var(--sidebar-rand);
+  padding-left: env(safe-area-inset-left);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   5. SIDEBAR-INHALTE
+════════════════════════════════════════════════════════════════════ */
+.sidebar-logo {
+  width: var(--btn-groesse);
+  height: var(--btn-groesse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+  flex-shrink: 0;
+}
+.logo-icon { font-size: 20px; }
+
+.werkzeug-gruppe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gruppe-gap);
+  width: 100%;
+  padding: var(--gruppe-pad) 0;
+  border-bottom: 1px solid var(--sidebar-rand);
+  flex-shrink: 0;
+}
+.werkzeug-gruppe:last-of-type { border-bottom: none; }
+.werkzeug-gruppe--unten {
+  margin-top: auto;
+  border-top: 1px solid var(--sidebar-rand);
+  border-bottom: none;
+  padding-bottom: 10px;
+}
+
+.werkzeug-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: var(--btn-groesse);
+  height: var(--btn-groesse);
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  border-radius: var(--btn-radius);
+  background: var(--btn-bg);
+  color: var(--text-gedaemmt);
+  cursor: pointer;
+  transition:
+    background var(--t-schnell),
+    color var(--t-schnell),
+    transform var(--t-schnell);
+  flex-shrink: 0;
+  /* Buttons empfangen Touch-Events direkt */
+  touch-action: manipulation;
+}
+.werkzeug-btn svg {
+  width: var(--btn-icon);
+  height: var(--btn-icon);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.btn-label {
+  font-size: var(--label-sz);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity var(--t-schnell);
+  pointer-events: none;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   7. BUTTON-ZUSTÄNDE
+════════════════════════════════════════════════════════════════════ */
+.werkzeug-btn:hover                        { background: var(--btn-bg-hover); color: var(--text-hell); }
+.werkzeug-btn:hover .btn-label             { opacity: 1; }
+.werkzeug-btn.aktiv,
+.werkzeug-btn[aria-pressed="true"]         { background: var(--btn-bg-aktiv); color: var(--akzent); }
+.werkzeug-btn.aktiv .btn-label,
+.werkzeug-btn[aria-pressed="true"] .btn-label { opacity: 1; }
+.werkzeug-btn:active                       { transform: scale(0.90); background: var(--btn-bg-aktiv); }
+
+.werkzeug-btn--primary {
+  background: rgba(74,140,247,0.14);
+  color: var(--akzent);
+}
+.werkzeug-btn--primary:hover { background: rgba(74,140,247,0.28); color: #89bcff; }
+
+.werkzeug-btn--gefahr { color: var(--gefahr); }
+.werkzeug-btn--gefahr:hover { background: rgba(224,32,32,0.15); color: #ff6666; }
+
+.werkzeug-btn--sekundaer { background: transparent; color: var(--text-gedaemmt); }
+
+/*
+  Scroll-Modus aktiv: Körper bekommt Klasse .scroll-modus (per JS gesetzt).
+  Der Modus-Button leuchtet dann orange als visueller Hinweis.
+*/
+body.scroll-modus #btn-modus-wechsel {
+  background: rgba(232, 106, 16, 0.20);
+  color: #e86a10;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   6. FARBPALETTE (8 Dots, 2 Spalten × 4 Zeilen)
+════════════════════════════════════════════════════════════════════ */
+.farb-palette {
+  display: grid;
+  grid-template-columns: repeat(2, var(--dot-groesse));
+  gap: 5px;
+  padding: 3px 0;
+}
+.farb-dot {
+  width: var(--dot-groesse);
+  height: var(--dot-groesse);
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform var(--t-schnell), border-color var(--t-schnell);
+}
+.farb-dot:hover { transform: scale(1.18); border-color: rgba(255,255,255,0.35); }
+.farb-dot.aktiv,
+.farb-dot[aria-pressed="true"] {
+  border-color: #fff;
+  transform: scale(1.12);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.25);
+}
+.farb-dot--hell { border-color: rgba(255,255,255,0.3); }
+.farb-dot--hell.aktiv {
+  border-color: var(--akzent);
+  box-shadow: 0 0 0 2px rgba(74,140,247,0.35);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   8. ZOOM-WRAPPER & SCROLL-MODUS
+════════════════════════════════════════════════════════════════════ */
+/*
+  Der Zoom-Wrapper ist der scrollbare Bereich.
+
+  Im ZEICHEN-Modus (Standard):
+    touch-action: none  → alle Touch-Events gehen an die Canvas-Listener
+    overflow: hidden    → kein versehentliches Scrollen
+
+  Im SCROLL-Modus (body.scroll-modus):
+    touch-action: pan-x pan-y  → nativer Browser-Scroll aktiv
+    overflow: auto             → Scrollen möglich
+    Die Canvas-Listener erhalten dann keine Touch-Events mehr
+    (touch-action unterdrückt sie für den Browser-Scroll).
+*/
+.zoom-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;           /* Standard: kein Scrollen */
+  touch-action: none;         /* Standard: alle Touch-Events manuell */
+  overscroll-behavior: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  position: relative;
+}
+
+/* Scroll-Modus: Scrollen freigeben */
+body.scroll-modus .zoom-wrapper {
+  overflow: auto;
+  touch-action: pan-x pan-y;  /* Nativer Scroll, kein Zeichnen */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Im Scroll-Modus Cursor auf Hand setzen */
+body.scroll-modus .zeichen-canvas {
+  cursor: grab;
+  pointer-events: none;       /* Touch-Events nicht an Canvas weitergeben */
+}
+body.scroll-modus .zeichen-canvas:active {
+  cursor: grabbing;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   9. PDF-CONTAINER & SEITEN-LAYOUT
+════════════════════════════════════════════════════════════════════ */
+.pdf-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 16px 60px;
+  width: max-content;
+  min-width: 100%;
+  transform-origin: top center;
+  /* Zoom-Transformation kommt als inline style per JS */
+}
+
+.seite-container {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  box-shadow:
+    0 4px 24px rgba(0,0,0,0.55),
+    0 1px 4px  rgba(0,0,0,0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.seite-container::before {
+  content: "Seite " attr(data-seite);
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 0;
+  font-size: 11px;
+  color: var(--text-gedaemmt);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.pdf-canvas {
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+.zeichen-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: crosshair;
+  touch-action: none;         /* Standard: Zeichnen */
+}
+.zeichen-canvas[data-werkzeug="radierer"]   { cursor: cell; }
+.zeichen-canvas[data-werkzeug="laser"]      { cursor: crosshair; }
+.zeichen-canvas[data-werkzeug="textmarker"] { cursor: text; }
+
+.lehrer-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   10. ZOOM-STEUERUNG
+════════════════════════════════════════════════════════════════════ */
+.zoom-steuerung {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(12,15,24,0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px;
+  padding: 6px 10px;
+  z-index: 200;
+  touch-action: manipulation;
+}
+.zoom-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-hell);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--t-schnell);
+  min-width: 36px;
+  touch-action: manipulation;
+}
+.zoom-btn:hover  { background: var(--btn-bg-hover); }
+.zoom-btn:active { background: var(--btn-bg-aktiv); transform: scale(0.92); }
+.zoom-btn--reset { font-size: 16px; color: var(--text-gedaemmt); }
+.zoom-anzeige {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-gedaemmt);
+  min-width: 44px;
+  text-align: center;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   11. START-ANZEIGE
+════════════════════════════════════════════════════════════════════ */
+.start-anzeige {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+.start-anzeige__inhalt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 300px;
+  text-align: center;
+  padding: 36px 28px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 20px;
+}
+.start-anzeige__icon  { font-size: 52px; animation: schweben 3.2s ease-in-out infinite; }
+.start-anzeige__titel { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.start-anzeige__text  { font-size: 14px; color: var(--text-gedaemmt); line-height: 1.6; }
+.start-anzeige__btn {
+  margin-top: 6px;
+  padding: 13px 28px;
+  background: var(--akzent);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 48px;
+  touch-action: manipulation;
+  transition: background var(--t-schnell), transform var(--t-schnell);
+}
+.start-anzeige__btn:hover  { background: var(--akzent-dunkel); }
+.start-anzeige__btn:active { transform: scale(0.97); }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   12. SPOTLIGHT-OVERLAY & ZUGPUNKTE
+════════════════════════════════════════════════════════════════════ */
+.spotlight-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  pointer-events: all;
+}
+
+/* Dunkle Maske mit Loch (clip-path / mask kommt per JS) */
+.spotlight-maske {
+  position: absolute;
+  inset: 0;
+  background: var(--spotlight-dunkel);
+}
+
+/* Helles Fokus-Fenster */
+.spotlight-fenster {
+  position: absolute;
+  background: transparent;
+  width:  300px;
+  height: 200px;
+  cursor: move;
+  /* Sichtbarer Rand */
+  box-shadow: 0 0 0 1.5px rgba(255,255,255,0.22);
+  /* Wichtig: overflow visible damit Griffe außerhalb sichtbar sind */
+  overflow: visible;
+}
+.spotlight-fenster::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1.5px dashed rgba(255,255,255,0.18);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.spotlight-fenster.oval { border-radius: 50%; }
+
+/* ── Zugpunkte (Griffe) ──────────────────────────────────────────
+   8 Griffe: 4 Ecken (nw, ne, se, sw) + 4 Kanten-Mitten (n, e, s, w).
+   Jeder Griff ist ein weißes Quadrat / Kreis mit touch-action: none.
+   Position via absolute + translate(-50%, -50%) an die jeweilige Seite.
+   ANPASSEN: --griff-groesse und --griff-farbe in den CSS-Variablen oben.
+────────────────────────────────────────────────────────────────── */
+.spot-griff {
+  position: absolute;
+  width:  var(--griff-groesse);
+  height: var(--griff-groesse);
+  background: var(--griff-farbe);
+  border: 2px solid rgba(0,0,0,0.35);
+  border-radius: var(--griff-radius);
+  touch-action: none;          /* Griffe empfangen Pencil-Events direkt */
+  z-index: 10;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  transition: transform 80ms ease, background 80ms ease;
+}
+.spot-griff:hover,
+.spot-griff:active {
+  background: #fff;
+  transform: scale(1.25);
+}
+
+/* ── Ecken ──────────────────────────────────────────────────────── */
+.spot-griff[data-griff="nw"] {
+  top:  0;    left: 0;
+  transform: translate(-50%, -50%);
+  cursor: nw-resize;
+}
+.spot-griff[data-griff="ne"] {
+  top:  0;    right: 0;
+  transform: translate(50%, -50%);
+  cursor: ne-resize;
+}
+.spot-griff[data-griff="se"] {
+  bottom: 0;  right: 0;
+  transform: translate(50%, 50%);
+  cursor: se-resize;
+}
+.spot-griff[data-griff="sw"] {
+  bottom: 0;  left: 0;
+  transform: translate(-50%, 50%);
+  cursor: sw-resize;
+}
+
+/* ── Kanten-Mitten ──────────────────────────────────────────────── */
+.spot-griff[data-griff="n"] {
+  top: 0;     left: 50%;
+  transform: translate(-50%, -50%);
+  cursor: n-resize;
+}
+.spot-griff[data-griff="s"] {
+  bottom: 0;  left: 50%;
+  transform: translate(-50%, 50%);
+  cursor: s-resize;
+}
+.spot-griff[data-griff="e"] {
+  top: 50%;   right: 0;
+  transform: translate(50%, -50%);
+  cursor: e-resize;
+}
+.spot-griff[data-griff="w"] {
+  top: 50%;   left: 0;
+  transform: translate(-50%, -50%);
+  cursor: w-resize;
+}
+
+/* Hover-Zustand: Griff nicht verschieben wenn bereits positioniert */
+.spot-griff[data-griff="nw"]:hover  { transform: translate(-50%, -50%) scale(1.25); }
+.spot-griff[data-griff="ne"]:hover  { transform: translate(50%,  -50%) scale(1.25); }
+.spot-griff[data-griff="se"]:hover  { transform: translate(50%,   50%) scale(1.25); }
+.spot-griff[data-griff="sw"]:hover  { transform: translate(-50%,  50%) scale(1.25); }
+.spot-griff[data-griff="n"]:hover   { transform: translate(-50%, -50%) scale(1.25); }
+.spot-griff[data-griff="s"]:hover   { transform: translate(-50%,  50%) scale(1.25); }
+.spot-griff[data-griff="e"]:hover   { transform: translate(50%,  -50%) scale(1.25); }
+.spot-griff[data-griff="w"]:hover   { transform: translate(-50%, -50%) scale(1.25); }
+
+/* ── Spotlight Mini-Toolbar ──────────────────────────────────────── */
+.spotlight-toolbar {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  background: rgba(12,15,24,0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  padding: 7px 10px;
+  z-index: 501;
+  touch-action: manipulation;
+}
+.spotlight-form-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-gedaemmt);
+  border-radius: 8px;
+  padding: 5px 13px;
+  font-size: 15px;
+  cursor: pointer;
+  min-height: 34px;
+  touch-action: manipulation;
+  transition: background var(--t-schnell), color var(--t-schnell);
+}
+.spotlight-form-btn:hover { background: var(--btn-bg-hover); color: var(--text-hell); }
+.spotlight-form-btn.aktiv {
+  background: var(--btn-bg-aktiv);
+  color: var(--akzent);
+  border-color: rgba(74,140,247,0.28);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   13. TOAST
+════════════════════════════════════════════════════════════════════ */
+.toast {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: rgba(12,15,24,0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 12px;
+  color: var(--text-hell);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 18px;
+  z-index: 1000;
+  pointer-events: none;
+  white-space: nowrap;
+  opacity: 0;
+  max-width: 75vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.toast.sichtbar { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.erfolg   { border-color: rgba(30,138,60,0.5); }
+.toast.fehler   { border-color: rgba(224,32,32,0.5); }
+.toast.info     { border-color: rgba(74,140,247,0.4); }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   14. LADE-INDIKATOR
+════════════════════════════════════════════════════════════════════ */
+.lade-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(8,10,18,0.82);
+  backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+.lade-spinner {
+  width: 46px;
+  height: 46px;
+  border: 3px solid rgba(74,140,247,0.2);
+  border-top-color: var(--akzent);
+  border-radius: 50%;
+  animation: drehen 0.75s linear infinite;
+}
+.lade-text { font-size: 13px; color: var(--text-gedaemmt); font-weight: 500; }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   15. ANIMATIONEN
+════════════════════════════════════════════════════════════════════ */
+@keyframes drehen  { to { transform: rotate(360deg); } }
+@keyframes schweben {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-9px); }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   16. BARRIEREFREIHEIT & FOKUS
+════════════════════════════════════════════════════════════════════ */
+:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; }
+.werkzeug-btn:focus-visible,
+.farb-dot:focus-visible,
+.zoom-btn:focus-visible { outline: 2px solid var(--akzent); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   17. RESPONSIVE – schmales Querformat
+════════════════════════════════════════════════════════════════════ */
+@media (max-height: 480px) {
+  :root {
+    --sidebar-breite: 50px;
+    --btn-groesse:    38px;
+    --btn-icon:       16px;
+    --dot-groesse:    20px;
+    --gruppe-pad:     3px;
+    --gruppe-gap:     2px;
+    --griff-groesse:  18px;
+  }
+  .btn-label    { display: none; }
+  .sidebar-logo { display: none; }
+  .zoom-steuerung { bottom: 8px; padding: 4px 8px; }
+}
