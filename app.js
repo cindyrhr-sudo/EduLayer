@@ -1,24 +1,31 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════╗
- * ║  EduLayer – Haupt-Anwendungslogik  (Version 2)                  ║
+ * ║  EduLayer – Haupt-Anwendungslogik  (Version 3)                  ║
  * ║  Datei: app.js                                                  ║
  * ╚══════════════════════════════════════════════════════════════════╝
  *
+ * ÄNDERUNGEN v3:
+ *  - Scroll-Modus: Umschalten zwischen Zeichnen und PDF-Scrollen
+ *  - Spotlight: 8 Zugpunkte (Ecken + Kanten) mit Apple-Pencil-Support
+ *    Jeder Griff skaliert das Fenster in die korrekte Richtung
+ *  - 2 neue Farben: Orange (#e86a10) und Türkis (#0097a7)
+ *
  * STRUKTUR:
- *  1.  KONFIGURATION        ← Werte hier anpassen
- *  2.  ZUSTAND              ← Zentrale Datenhaltung
+ *  1.  KONFIGURATION
+ *  2.  ZUSTAND
  *  3.  DOM-REFERENZEN
- *  4.  HILFSFUNKTIONEN      ← Toast, Koordinaten, Download
- *  5.  SIDEBAR-LOGIK        ← Werkzeug- & Farbwahl, Seite wechseln
- *  6.  ZEICHEN-ENGINE       ← Touch/Maus → Canvas
- *  7.  UNDO / REDO          ← Snapshot-basierter Verlauf
- *  8.  LEHRER-LAYER         ← Zweiter Annotations-Layer
- *  9.  SPOTLIGHT            ← Fokus-Overlay mit Drag & Resize
- * 10.  ZOOM                 ← Pinch-to-Zoom + Buttons
- * 11.  PDF-RENDERING        ← pdf.js: Seiten auf Canvas
- * 12.  PDF-EXPORT           ← pdf-lib: Annotationen einbetten
- * 13.  SERVICE WORKER       ← PWA Offline-Registrierung
- * 14.  APP-START
+ *  4.  HILFSFUNKTIONEN
+ *  5.  SIDEBAR-LOGIK
+ *  6.  SCROLL-MODUS
+ *  7.  ZEICHEN-ENGINE
+ *  8.  UNDO / REDO
+ *  9.  LEHRER-LAYER
+ * 10.  SPOTLIGHT (mit 8-Griff-System)
+ * 11.  ZOOM
+ * 12.  PDF-RENDERING
+ * 13.  PDF-EXPORT
+ * 14.  SERVICE WORKER
+ * 15.  APP-START
  */
 
 'use strict';
@@ -29,100 +36,96 @@
 ════════════════════════════════════════════════════════════════════ */
 const KONFIGURATION = {
 
-  // ── Stiftstärken (in Canvas-Pixeln) ──────────────────────────
-  STIFT_DUENN_PX:      2,
-  STIFT_DICK_PX:       6,
-  TEXTMARKER_PX:       18,
-  RADIERER_PX:         28,
-  LASER_PX:            4,
+  // ── Stiftstärken ─────────────────────────────────────────────
+  STIFT_DUENN_PX:    2,
+  STIFT_DICK_PX:     6,
+  TEXTMARKER_PX:     18,
+  RADIERER_PX:       28,
+  LASER_PX:          4,
 
-  // ── Farben ────────────────────────────────────────────────────
-  LASER_FARBE:         '#ff3030',
-  TEXTMARKER_FARBE:    'rgba(255, 210, 0, 0.45)',
-  STANDARD_FARBE:      '#1a3a6b',
+  // ── Farben ───────────────────────────────────────────────────
+  LASER_FARBE:       '#ff3030',
+  TEXTMARKER_FARBE:  'rgba(255, 210, 0, 0.45)',
+  STANDARD_FARBE:    '#1a3a6b',
 
-  // ── Laserpointer: Anzeigedauer in Millisekunden ───────────────
-  LASER_TIMEOUT_MS:    2000,
+  // ── Laserpointer: Sichtbarkeitsdauer in Millisekunden ────────
+  LASER_TIMEOUT_MS:  2000,
 
-  // ── Spotlight ─────────────────────────────────────────────────
-  SPOTLIGHT_MIN_B:     80,
-  SPOTLIGHT_MIN_H:     60,
-  SPOTLIGHT_START_B:   320,
-  SPOTLIGHT_START_H:   200,
+  // ── Spotlight ────────────────────────────────────────────────
+  SPOTLIGHT_MIN_B:   60,    // Minimale Fensterbreite (px)
+  SPOTLIGHT_MIN_H:   40,    // Minimale Fensterhöhe (px)
+  SPOTLIGHT_START_B: 320,
+  SPOTLIGHT_START_H: 200,
 
-  // ── PDF-Rendering ──────────────────────────────────────────────
-  // Höherer Wert = schärfer, aber langsamer (1.5 ist gut für iPad)
-  PDF_SCALE:           1.5,
+  // ── PDF-Rendering ─────────────────────────────────────────────
+  // 1.5 = gute Schärfe auf iPad Retina; 2.0 = schärfer aber langsamer
+  PDF_SCALE:         1.5,
 
-  // ── Zoom ──────────────────────────────────────────────────────
-  ZOOM_MIN:            0.4,
-  ZOOM_MAX:            4.0,
-  ZOOM_SCHRITT:        0.2,   // Schritt pro Button-Klick
+  // ── Zoom ─────────────────────────────────────────────────────
+  ZOOM_MIN:          0.3,
+  ZOOM_MAX:          4.0,
+  ZOOM_SCHRITT:      0.2,
 
-  // ── pdf.js Worker-URL (muss zur CDN-Version passen!) ──────────
+  // ── pdf.js Worker (Version muss zur CDN-URL in index.html passen) ──
   PDFJS_WORKER:
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
 };
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   2. ZUSTAND  – Single Source of Truth
+   2. ZUSTAND – Single Source of Truth
 ════════════════════════════════════════════════════════════════════ */
 const Z = {
 
-  // ── Werkzeug & Farbe ──────────────────────────────────────────
+  // ── Werkzeug & Farbe ─────────────────────────────────────────
   werkzeug:        'stift-duenn',
   strichfarbe:     KONFIGURATION.STANDARD_FARBE,
   strichbreite:    KONFIGURATION.STIFT_DUENN_PX,
 
-  // ── Zeichenstatus ─────────────────────────────────────────────
+  // ── Zeichenstatus ────────────────────────────────────────────
   zeichnet:        false,
-  letzterPunkt:    null,       // { x, y }
-  aktuellerStrich: null,       // Strich-Objekt während des Zeichnens
+  letzterPunkt:    null,
+  aktuellerStrich: null,
 
-  // ── PDF ───────────────────────────────────────────────────────
-  pdfDokument:     null,       // pdfjsLib.PDFDocumentProxy
+  // ── App-Modus ─────────────────────────────────────────────────
+  // 'zeichnen' | 'scrollen'
+  modus:           'zeichnen',
+
+  // ── PDF ──────────────────────────────────────────────────────
+  pdfDokument:     null,
   seitenAnzahl:    0,
-  aktiveSeite:     1,          // aktuell sichtbarste Seite
-  pdfBytes:        null,       // Uint8Array der Original-PDF
+  aktiveSeite:     1,
+  pdfBytes:        null,
+  viewports:       {},
 
-  /**
-   * annotationen[seite] = [
-   *   { punkte:[{x,y}…], farbe, breite, werkzeug }
-   * ]
-   * Laser-Striche werden NICHT gespeichert (flüchtig).
-   * Radierer-Aktionen werden als Snapshot im undo-Verlauf abgebildet.
-   */
+  // ── Annotationen ─────────────────────────────────────────────
   annotationen:    {},
-  undoVerlauf:     {},         // { seite: [dataURL, …] }
+  undoVerlauf:     {},
   redoVerlauf:     {},
 
-  // ── Lehrer-Layer ──────────────────────────────────────────────
+  // ── Lehrer-Layer ─────────────────────────────────────────────
   lehrerAnnotationen: {},
   lehrerAktiv:     false,
 
-  // ── Spotlight ─────────────────────────────────────────────────
+  // ── Spotlight ────────────────────────────────────────────────
   spotlightAktiv:  false,
   spotlightForm:   'rechteck',
+  // Fenster-Rechteck: x/y = linke obere Ecke, b = Breite, h = Höhe
   spotFenster:     { x: 0, y: 0, b: 320, h: 200 },
-  spotAktion:      null,       // 'bewegen' | 'groesse'
-  spotOffset:      null,
+  // Aktiver Griff beim Ziehen: 'nw'|'n'|'ne'|'e'|'se'|'s'|'sw'|'w'|'mitte'|null
+  spotGriff:       null,
+  // Startdaten beim Zieh-Beginn (Fenster-Snapshot + Touch-Startpunkt)
+  spotDragStart:   null,
 
-  // ── Zoom ──────────────────────────────────────────────────────
+  // ── Zoom ─────────────────────────────────────────────────────
   zoom:            1.0,
+  pinch:           null,
 
-  // ── Pinch-Geste ───────────────────────────────────────────────
-  pinch:           null,       // { abstand, zoomStart }
-
-  // ── Sidebar ───────────────────────────────────────────────────
+  // ── Sidebar ──────────────────────────────────────────────────
   sidebarSeite:    'right',
 
-  // ── Laser-Timeouts (IDs zum Abbrechen) ───────────────────────
+  // ── Laser ────────────────────────────────────────────────────
   laserTimeouts:   [],
-
-  // ── Seiten-Viewports (für Koordinaten-Mapping beim Export) ────
-  // { seite: { breite, hoehe, scale } }
-  viewports:       {},
 };
 
 
@@ -130,59 +133,64 @@ const Z = {
    3. DOM-REFERENZEN
 ════════════════════════════════════════════════════════════════════ */
 const D = {
-  body:                   document.body,
-  hauptbereich:           document.getElementById('hauptbereich'),
-  zoomWrapper:            document.getElementById('zoom-wrapper'),
-  pdfContainer:           document.getElementById('pdf-container'),
-  startAnzeige:           document.getElementById('start-anzeige'),
+  body:              document.body,
+  hauptbereich:      document.getElementById('hauptbereich'),
+  zoomWrapper:       document.getElementById('zoom-wrapper'),
+  pdfContainer:      document.getElementById('pdf-container'),
+  startAnzeige:      document.getElementById('start-anzeige'),
 
   // Datei
-  btnDateiLaden:          document.getElementById('btn-datei-laden'),
-  btnStartLaden:          document.getElementById('btn-start-laden'),
-  dateiInput:             document.getElementById('datei-input'),
-  btnSpeichern:           document.getElementById('btn-speichern'),
+  btnDateiLaden:     document.getElementById('btn-datei-laden'),
+  btnStartLaden:     document.getElementById('btn-start-laden'),
+  dateiInput:        document.getElementById('datei-input'),
+  btnSpeichern:      document.getElementById('btn-speichern'),
 
   // Werkzeuge
-  btnStiftDuenn:          document.getElementById('btn-stift-duenn'),
-  btnStiftDick:           document.getElementById('btn-stift-dick'),
-  btnTextmarker:          document.getElementById('btn-textmarker'),
-  btnRadierer:            document.getElementById('btn-radierer'),
-  btnLaser:               document.getElementById('btn-laser'),
-  farbDots:               document.querySelectorAll('.farb-dot'),
+  btnStiftDuenn:     document.getElementById('btn-stift-duenn'),
+  btnStiftDick:      document.getElementById('btn-stift-dick'),
+  btnTextmarker:     document.getElementById('btn-textmarker'),
+  btnRadierer:       document.getElementById('btn-radierer'),
+  btnLaser:          document.getElementById('btn-laser'),
+  farbDots:          document.querySelectorAll('.farb-dot'),
 
   // Verlauf
-  btnUndo:                document.getElementById('btn-undo'),
-  btnRedo:                document.getElementById('btn-redo'),
-  btnSeiteLeeren:         document.getElementById('btn-seite-leeren'),
+  btnUndo:           document.getElementById('btn-undo'),
+  btnRedo:           document.getElementById('btn-redo'),
+  btnSeiteLeeren:    document.getElementById('btn-seite-leeren'),
 
   // Modi
-  btnSpotlight:           document.getElementById('btn-spotlight'),
-  btnLehrerLayer:         document.getElementById('btn-lehrer-layer'),
-  iconAugeAuf:            document.getElementById('icon-auge-auf'),
-  iconAugeZu:             document.getElementById('icon-auge-zu'),
+  btnModusWechsel:   document.getElementById('btn-modus-wechsel'),
+  iconStiftModus:    document.getElementById('icon-stift-modus'),
+  iconScrollModus:   document.getElementById('icon-scroll-modus'),
+  btnSpotlight:      document.getElementById('btn-spotlight'),
+  btnLehrerLayer:    document.getElementById('btn-lehrer-layer'),
+  iconAugeAuf:       document.getElementById('icon-auge-auf'),
+  iconAugeZu:        document.getElementById('icon-auge-zu'),
 
   // Spotlight
-  spotlightOverlay:       document.getElementById('spotlight-overlay'),
-  spotlightFenster:       document.getElementById('spotlight-fenster'),
-  spotlightMaske:         document.getElementById('spotlight-maske'),
-  btnSpotRechteck:        document.getElementById('btn-spotlight-rechteck'),
-  btnSpotOval:            document.getElementById('btn-spotlight-oval'),
-  btnSpotSchliessen:      document.getElementById('btn-spotlight-schliessen'),
+  spotlightOverlay:  document.getElementById('spotlight-overlay'),
+  spotlightFenster:  document.getElementById('spotlight-fenster'),
+  spotlightMaske:    document.getElementById('spotlight-maske'),
+  btnSpotRechteck:   document.getElementById('btn-spotlight-rechteck'),
+  btnSpotOval:       document.getElementById('btn-spotlight-oval'),
+  btnSpotSchliessen: document.getElementById('btn-spotlight-schliessen'),
+  // Alle 8 Zugpunkte (werden beim Init per querySelectorAll gesammelt)
+  spotGriffe:        null,
 
   // Zoom
-  zoomSteuerung:          document.getElementById('zoom-steuerung'),
-  btnZoomPlus:            document.getElementById('btn-zoom-plus'),
-  btnZoomMinus:           document.getElementById('btn-zoom-minus'),
-  btnZoomReset:           document.getElementById('btn-zoom-reset'),
-  zoomAnzeige:            document.getElementById('zoom-anzeige'),
+  zoomSteuerung:     document.getElementById('zoom-steuerung'),
+  btnZoomPlus:       document.getElementById('btn-zoom-plus'),
+  btnZoomMinus:      document.getElementById('btn-zoom-minus'),
+  btnZoomReset:      document.getElementById('btn-zoom-reset'),
+  zoomAnzeige:       document.getElementById('zoom-anzeige'),
 
   // Sidebar
-  btnSidebarWechsel:      document.getElementById('btn-sidebar-wechsel'),
+  btnSidebarWechsel: document.getElementById('btn-sidebar-wechsel'),
 
   // Feedback
-  toast:                  document.getElementById('toast'),
-  ladeOverlay:            document.getElementById('lade-overlay'),
-  ladeText:               document.getElementById('lade-text'),
+  toast:             document.getElementById('toast'),
+  ladeOverlay:       document.getElementById('lade-overlay'),
+  ladeText:          document.getElementById('lade-text'),
 };
 
 
@@ -190,12 +198,7 @@ const D = {
    4. HILFSFUNKTIONEN
 ════════════════════════════════════════════════════════════════════ */
 
-/**
- * Zeigt eine kurze Toast-Nachricht.
- * @param {string} text
- * @param {'info'|'erfolg'|'fehler'} typ
- * @param {number} ms  – Anzeigedauer
- */
+/** Toast-Meldung anzeigen. */
 function toast(text, typ = 'info', ms = 2400) {
   const el = D.toast;
   el.className   = 'toast';
@@ -213,91 +216,71 @@ function ladeAnzeige(an, text = 'Laden…') {
 }
 
 /**
- * Ermittelt Canvas-Koordinaten aus einem Touch- oder Maus-Ereignis.
- * Berücksichtigt CSS-Skalierung (zoom) und devicePixelRatio.
- *
- * @param {TouchEvent|MouseEvent} e
- * @param {HTMLCanvasElement} canvas
- * @returns {{ x: number, y: number }}
+ * Canvas-Koordinaten aus Touch- oder Maus-Ereignis ermitteln.
+ * Berücksichtigt CSS-Zoom-Transform (getBoundingClientRect ist korrekt
+ * weil er die gerenderte Größe liefert, nicht die logische).
  */
 function koordinaten(e, canvas) {
   const rect = canvas.getBoundingClientRect();
   let cx, cy;
-
-  if (e.touches && e.touches.length > 0) {
-    cx = e.touches[0].clientX;
-    cy = e.touches[0].clientY;
-  } else if (e.changedTouches && e.changedTouches.length > 0) {
-    cx = e.changedTouches[0].clientX;
-    cy = e.changedTouches[0].clientY;
+  if (e.touches?.length > 0) {
+    cx = e.touches[0].clientX; cy = e.touches[0].clientY;
+  } else if (e.changedTouches?.length > 0) {
+    cx = e.changedTouches[0].clientX; cy = e.changedTouches[0].clientY;
   } else {
-    cx = e.clientX;
-    cy = e.clientY;
+    cx = e.clientX; cy = e.clientY;
   }
-
-  // rect spiegelt die CSS-Größe wider (inkl. Zoom-Transform).
-  // Canvas.width/height sind die tatsächlichen Pixel-Maße.
   return {
     x: (cx - rect.left) * (canvas.width  / rect.width),
     y: (cy - rect.top)  * (canvas.height / rect.height),
   };
 }
 
-/**
- * Gibt den Zeichen-Canvas einer Seite zurück.
- * @param {number} seite
- * @returns {HTMLCanvasElement|null}
- */
+/** Zeichen-Canvas einer Seite zurückgeben. */
 function zeichenCanvas(seite) {
   return document.querySelector(
     `.seite-container[data-seite="${seite}"] .zeichen-canvas`
   );
 }
 
-/**
- * Gibt den Lehrer-Canvas einer Seite zurück.
- * @param {number} seite
- * @returns {HTMLCanvasElement|null}
- */
+/** Lehrer-Canvas einer Seite zurückgeben. */
 function lehrerCanvas(seite) {
   return document.querySelector(
     `.seite-container[data-seite="${seite}"] .lehrer-canvas`
   );
 }
 
-/**
- * Löst einen Datei-Download im Browser aus.
- * @param {Uint8Array|string} daten  – Rohdaten oder DataURL
- * @param {string} dateiname
- * @param {string} mimeTyp
- */
+/** Datei-Download auslösen. */
 function download(daten, dateiname, mimeTyp = 'application/pdf') {
-  let url;
-  if (typeof daten === 'string') {
-    url = daten; // DataURL direkt verwenden
-  } else {
-    const blob = new Blob([daten], { type: mimeTyp });
-    url = URL.createObjectURL(blob);
-  }
-  const a = document.createElement('a');
-  a.href     = url;
-  a.download = dateiname;
-  a.click();
-  // Blob-URL nach kurzem Delay freigeben
-  if (typeof daten !== 'string') {
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-  }
+  const blob = new Blob([daten], { type: mimeTyp });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = dateiname; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
-/**
- * Berechnet den Abstand zwischen zwei Touch-Punkten (Pinch).
- * @param {TouchList} touches
- * @returns {number}
- */
+/** Abstand zwischen zwei Touch-Punkten (für Pinch). */
 function pinchAbstand(touches) {
-  const dx = touches[0].clientX - touches[1].clientX;
-  const dy = touches[0].clientY - touches[1].clientY;
-  return Math.hypot(dx, dy);
+  return Math.hypot(
+    touches[0].clientX - touches[1].clientX,
+    touches[0].clientY - touches[1].clientY
+  );
+}
+
+/** Zeitstempel für Dateinamen (Format: JJJJ-MM-TT_HH-MM). */
+function zeitstempel() {
+  const d = new Date();
+  const z = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}` +
+         `_${z(d.getHours())}-${z(d.getMinutes())}`;
+}
+
+/** Base64-String → Uint8Array (für pdf-lib). */
+function base64ZuBytes(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 
@@ -305,59 +288,48 @@ function pinchAbstand(touches) {
    5. SIDEBAR-LOGIK
 ════════════════════════════════════════════════════════════════════ */
 
-/** Alle Buttons mit data-werkzeug-Attribut */
 const WERKZEUG_BTNS = document.querySelectorAll('[data-werkzeug]');
 
-/**
- * Wählt ein Werkzeug aus: aktualisiert Zustand, Buttons und Canvas-Cursor.
- * @param {string} name
- */
+/** Werkzeug wählen: Zustand + Button-UI + Canvas-Cursor. */
 function werkzeugWaehlen(name) {
   Z.werkzeug    = name;
-  Z.strichbreite = {
+  Z.strichbreite = ({
     'stift-duenn': KONFIGURATION.STIFT_DUENN_PX,
     'stift-dick':  KONFIGURATION.STIFT_DICK_PX,
     'textmarker':  KONFIGURATION.TEXTMARKER_PX,
     'radierer':    KONFIGURATION.RADIERER_PX,
     'laser':       KONFIGURATION.LASER_PX,
-  }[name] ?? KONFIGURATION.STIFT_DUENN_PX;
+  })[name] ?? KONFIGURATION.STIFT_DUENN_PX;
 
-  // Button-UI aktualisieren
   WERKZEUG_BTNS.forEach(b => {
-    const aktiv = b.dataset.werkzeug === name;
-    b.classList.toggle('aktiv', aktiv);
-    b.setAttribute('aria-pressed', aktiv ? 'true' : 'false');
+    const a = b.dataset.werkzeug === name;
+    b.classList.toggle('aktiv', a);
+    b.setAttribute('aria-pressed', a ? 'true' : 'false');
   });
-
-  // Canvas-Cursor aktualisieren
   document.querySelectorAll('.zeichen-canvas').forEach(c => {
     c.dataset.werkzeug = name;
   });
 }
 
-/**
- * Wählt eine Strichfarbe aus.
- * @param {string} farbe  – CSS-Farbwert
- */
+/** Strichfarbe wählen. */
 function farbeWaehlen(farbe) {
   Z.strichfarbe = farbe;
   D.farbDots.forEach(d => {
-    const aktiv = d.dataset.farbe === farbe;
-    d.classList.toggle('aktiv', aktiv);
-    d.setAttribute('aria-pressed', aktiv ? 'true' : 'false');
+    const a = d.dataset.farbe === farbe;
+    d.classList.toggle('aktiv', a);
+    d.setAttribute('aria-pressed', a ? 'true' : 'false');
   });
 }
 
-/** Wechselt Sidebar zwischen links und rechts. */
+/** Sidebar links ↔ rechts. */
 function sidebarWechseln() {
   Z.sidebarSeite = Z.sidebarSeite === 'right' ? 'left' : 'right';
   D.body.dataset.sidebar = Z.sidebarSeite;
   toast(Z.sidebarSeite === 'right' ? 'Sidebar rechts' : 'Sidebar links', 'info', 1200);
 }
 
-/** Initialisiert alle Sidebar-Event-Listener. */
+/** Alle Sidebar-Listener registrieren. */
 function sidebarInit() {
-  // Datei-Laden
   D.btnDateiLaden.addEventListener('click', () => D.dateiInput.click());
   D.btnStartLaden.addEventListener('click', () => D.dateiInput.click());
   D.dateiInput.addEventListener('change', e => {
@@ -366,26 +338,28 @@ function sidebarInit() {
     D.dateiInput.value = '';
   });
 
-  // Werkzeuge
   D.btnStiftDuenn.addEventListener('click',  () => werkzeugWaehlen('stift-duenn'));
   D.btnStiftDick.addEventListener('click',   () => werkzeugWaehlen('stift-dick'));
   D.btnTextmarker.addEventListener('click',  () => werkzeugWaehlen('textmarker'));
   D.btnRadierer.addEventListener('click',    () => werkzeugWaehlen('radierer'));
   D.btnLaser.addEventListener('click',       () => werkzeugWaehlen('laser'));
 
-  // Farb-Dots
   D.farbDots.forEach(dot => {
     dot.addEventListener('click', () => {
       if (dot.dataset.farbe) farbeWaehlen(dot.dataset.farbe);
     });
   });
 
-  // Verlauf
   D.btnUndo.addEventListener('click',        undoAusfuehren);
   D.btnRedo.addEventListener('click',        redoAusfuehren);
   D.btnSeiteLeeren.addEventListener('click', seiteLeeren);
 
-  // Tastatur-Shortcuts
+  D.btnModusWechsel.addEventListener('click', scrollModusUmschalten);
+  D.btnSpotlight.addEventListener('click',    spotlightUmschalten);
+  D.btnLehrerLayer.addEventListener('click',  lehrerLayerUmschalten);
+  D.btnSpeichern.addEventListener('click',    pdfSpeichern);
+  D.btnSidebarWechsel.addEventListener('click', sidebarWechseln);
+
   document.addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey) {
       if (e.key === 'z') { e.preventDefault(); undoAusfuehren(); }
@@ -393,63 +367,73 @@ function sidebarInit() {
     }
     if (e.key === 'Escape' && Z.spotlightAktiv) spotlightAus();
   });
-
-  // Modi
-  D.btnSpotlight.addEventListener('click',   spotlightUmschalten);
-  D.btnLehrerLayer.addEventListener('click', lehrerLayerUmschalten);
-
-  // Speichern
-  D.btnSpeichern.addEventListener('click',   pdfSpeichern);
-
-  // Sidebar-Seite
-  D.btnSidebarWechsel.addEventListener('click', sidebarWechseln);
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   6. ZEICHEN-ENGINE
+   6. SCROLL-MODUS
+   Schaltet zwischen Zeichnen und nativen Browser-Scroll um.
+
+   Technik:
+   Im Zeichen-Modus hat .zoom-wrapper touch-action:none → alle
+   Touch-Events landen in den Canvas-Listenern.
+   Im Scroll-Modus hat .zoom-wrapper touch-action:pan-x pan-y →
+   der Browser scrollt nativ, Canvas-Listener erhalten keine Events.
+   Das CSS übernimmt die Umschaltung per body.scroll-modus Klasse.
 ════════════════════════════════════════════════════════════════════ */
 
-/**
- * Konfiguriert den Canvas-2D-Context für das aktuelle Werkzeug.
- * Muss vor jedem Zeichenbefehl aufgerufen werden.
- *
- * @param {CanvasRenderingContext2D} ctx
- */
+/** Scroll-Modus ein-/ausschalten. */
+function scrollModusUmschalten() {
+  const scrollAktiv = Z.modus === 'scrollen';
+  Z.modus = scrollAktiv ? 'zeichnen' : 'scrollen';
+
+  D.body.classList.toggle('scroll-modus', !scrollAktiv);
+  D.body.dataset.modus = Z.modus;
+
+  // Icons tauschen
+  D.iconStiftModus.style.display  = scrollAktiv ? 'block' : 'none';
+  D.iconScrollModus.style.display = scrollAktiv ? 'none'  : 'block';
+
+  D.btnModusWechsel.setAttribute('aria-pressed', scrollAktiv ? 'false' : 'true');
+
+  toast(
+    scrollAktiv ? 'Zeichnen aktiv' : 'Scroll-Modus aktiv – Finger scrollt das PDF',
+    'info', 2000
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   7. ZEICHEN-ENGINE
+════════════════════════════════════════════════════════════════════ */
+
+/** Canvas-Context für das aktuelle Werkzeug konfigurieren. */
 function ctxKonfigurieren(ctx) {
   ctx.lineCap  = 'round';
   ctx.lineJoin = 'round';
   ctx.lineWidth = Z.strichbreite;
 
   switch (Z.werkzeug) {
-
     case 'textmarker':
-      // multiply: Text darunter bleibt sichtbar, Farben überlagern sich
       ctx.globalCompositeOperation = 'multiply';
       ctx.strokeStyle = KONFIGURATION.TEXTMARKER_FARBE;
       ctx.globalAlpha = 1;
       ctx.shadowBlur  = 0;
       break;
-
     case 'radierer':
-      // destination-out: löscht Pixel auf dem Zeichen-Canvas
       ctx.globalCompositeOperation = 'destination-out';
       ctx.strokeStyle = 'rgba(0,0,0,1)';
       ctx.globalAlpha = 1;
       ctx.shadowBlur  = 0;
       break;
-
     case 'laser':
       ctx.globalCompositeOperation = 'source-over';
       ctx.strokeStyle = KONFIGURATION.LASER_FARBE;
       ctx.globalAlpha = 0.9;
-      // Leucht-Effekt durch shadowBlur
       ctx.shadowBlur  = 14;
       ctx.shadowColor = KONFIGURATION.LASER_FARBE;
       break;
-
     default:
-      // stift-duenn, stift-dick
       ctx.globalCompositeOperation = 'source-over';
       ctx.strokeStyle = Z.strichfarbe;
       ctx.globalAlpha = 1;
@@ -458,29 +442,23 @@ function ctxKonfigurieren(ctx) {
   }
 }
 
-/**
- * Setzt alle Canvas-Eigenschaften auf sichere Standardwerte zurück.
- * Wichtig: nach Textmarker und Laser um Artefakte zu verhindern.
- *
- * @param {CanvasRenderingContext2D} ctx
- */
+/** Canvas-Context auf sichere Standardwerte zurücksetzen. */
 function ctxReset(ctx) {
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
   ctx.shadowBlur  = 0;
 }
 
-/**
- * Strich-Start: touchstart / mousedown
- * @param {TouchEvent|MouseEvent} e
- * @param {HTMLCanvasElement} canvas
- */
+/** Strich-Start: touchstart / mousedown / pointerdown */
 function strichStarten(e, canvas) {
-  // Pinch-Geste hat Vorrang → kein Zeichnen
+  // Im Scroll-Modus nicht zeichnen
+  if (Z.modus === 'scrollen') return;
+  // Pinch (2 Finger) hat Vorrang
   if (e.touches && e.touches.length > 1) return;
+  // Spotlight hat Vorrang
   if (Z.spotlightAktiv) return;
-  e.preventDefault();
 
+  e.preventDefault();
   Z.zeichnet = true;
   const p = koordinaten(e, canvas);
   Z.letzterPunkt = p;
@@ -488,7 +466,6 @@ function strichStarten(e, canvas) {
   const seite = +canvas.closest('.seite-container').dataset.seite;
   undoSnapshot(seite);
 
-  // Neuen Strich vorbereiten (Laser + Radierer werden nicht dauerhaft gespeichert)
   if (Z.werkzeug !== 'laser' && Z.werkzeug !== 'radierer') {
     if (!Z.annotationen[seite]) Z.annotationen[seite] = [];
     Z.aktuellerStrich = {
@@ -501,7 +478,7 @@ function strichStarten(e, canvas) {
     Z.aktuellerStrich = null;
   }
 
-  // Einzelnen Punkt zeichnen (für kurze Tipp-Gesten)
+  // Punkt für kurze Tipp-Gesten zeichnen
   const ctx = canvas.getContext('2d');
   ctxKonfigurieren(ctx);
   ctx.beginPath();
@@ -510,23 +487,16 @@ function strichStarten(e, canvas) {
   ctxReset(ctx);
 }
 
-/**
- * Strich-Bewegen: touchmove / mousemove
- * @param {TouchEvent|MouseEvent} e
- * @param {HTMLCanvasElement} canvas
- */
+/** Strich-Bewegen: touchmove / mousemove */
 function strichBewegen(e, canvas) {
-  // Pinch-Geste erkennen
+  if (Z.modus === 'scrollen') return;
+
+  // Pinch erkennen
   if (e.touches && e.touches.length === 2) {
-    if (Z.zeichnet) {
-      // Zeichnen abbrechen sobald zweiter Finger kommt
-      Z.zeichnet = false;
-      Z.aktuellerStrich = null;
-    }
+    if (Z.zeichnet) { Z.zeichnet = false; Z.aktuellerStrich = null; }
     pinchBewegen(e);
     return;
   }
-
   if (!Z.zeichnet) return;
   e.preventDefault();
 
@@ -540,75 +510,48 @@ function strichBewegen(e, canvas) {
   ctx.stroke();
   ctxReset(ctx);
 
-  if (Z.aktuellerStrich) {
-    Z.aktuellerStrich.punkte.push({ ...p });
-  }
-
+  if (Z.aktuellerStrich) Z.aktuellerStrich.punkte.push({ ...p });
   Z.letzterPunkt = p;
 }
 
-/**
- * Strich-Ende: touchend / mouseup
- * @param {TouchEvent|MouseEvent} e
- * @param {HTMLCanvasElement} canvas
- */
+/** Strich-Ende: touchend / mouseup */
 function strichBeenden(e, canvas) {
   if (!Z.zeichnet) return;
   e.preventDefault();
-
   Z.zeichnet = false;
 
-  // Fertigen Strich in Annotations-Speicher übernehmen
   if (Z.aktuellerStrich) {
     const seite = +canvas.closest('.seite-container').dataset.seite;
     if (!Z.annotationen[seite]) Z.annotationen[seite] = [];
     Z.annotationen[seite].push(Z.aktuellerStrich);
     Z.aktuellerStrich = null;
   }
-
-  // Laser-Striche nach Timeout ausblenden
-  if (Z.werkzeug === 'laser') {
-    laserAusblenden(canvas);
-  }
-
+  if (Z.werkzeug === 'laser') laserAusblenden(canvas);
   Z.letzterPunkt = null;
 }
 
 /**
- * Blendet den aktuellen Laser-Inhalt des Canvas nach dem Timeout aus.
- * Technik: Snapshot → warten → Canvas leeren → Bild mit sinkender
- * Deckkraft kurz zurückzeichnen → komplett löschen.
- *
- * @param {HTMLCanvasElement} canvas
+ * Laser-Strich nach Timeout ausblenden.
+ * Snapshot des Canvas → warten → löschen → kurz gedimmt anzeigen → löschen.
  */
 function laserAusblenden(canvas) {
-  const snapshot = canvas.toDataURL();
-  const ctx = canvas.getContext('2d');
-
-  const tid = setTimeout(() => {
+  const snap = canvas.toDataURL();
+  const ctx  = canvas.getContext('2d');
+  const tid  = setTimeout(() => {
     const img = new Image();
     img.onload = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.globalAlpha = 0.5;
       ctx.drawImage(img, 0, 0);
       ctx.globalAlpha = 1;
-
-      setTimeout(() => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }, 350);
+      setTimeout(() => ctx.clearRect(0, 0, canvas.width, canvas.height), 350);
     };
-    img.src = snapshot;
+    img.src = snap;
   }, KONFIGURATION.LASER_TIMEOUT_MS);
-
   Z.laserTimeouts.push(tid);
 }
 
-/**
- * Registriert alle Zeichen-Listener für einen Canvas.
- * Wird nach dem Erstellen jedes Seiten-Canvas aufgerufen.
- *
- * @param {HTMLCanvasElement} canvas
- */
+/** Touch- und Maus-Listener für einen Zeichen-Canvas registrieren. */
 function zeichenListeners(canvas) {
   canvas.addEventListener('touchstart',
     e => strichStarten(e, canvas), { passive: false });
@@ -619,196 +562,151 @@ function zeichenListeners(canvas) {
   canvas.addEventListener('touchcancel',
     e => strichBeenden(e, canvas), { passive: false });
 
-  // Maus (Desktop-Vorschau / Apple Pencil in manchen Browsern)
   canvas.addEventListener('mousedown',  e => strichStarten(e, canvas));
   canvas.addEventListener('mousemove',  e => strichBewegen(e, canvas));
   canvas.addEventListener('mouseup',    e => strichBeenden(e, canvas));
   canvas.addEventListener('mouseleave', e => { if (Z.zeichnet) strichBeenden(e, canvas); });
 }
 
-/**
- * Zeichnet alle gespeicherten Annotationen einer Seite neu auf den Canvas.
- * Wird nach Undo/Redo-Operationen oder beim Lehrer-Layer-Wechsel verwendet.
- *
- * @param {number} seite
- * @param {CanvasRenderingContext2D} ctx
- * @param {Object[]} striche  – Array von Strich-Objekten
- */
+/** Annotationen (Strich-Array) auf einen Canvas zeichnen. Für Undo/Layer. */
 function stricheZeichnen(ctx, striche) {
-  if (!striche || striche.length === 0) return;
-
+  if (!striche?.length) return;
   striche.forEach(strich => {
-    if (!strich.punkte || strich.punkte.length === 0) return;
-
-    ctx.lineCap   = 'round';
-    ctx.lineJoin  = 'round';
+    if (!strich.punkte?.length) return;
+    ctx.lineCap  = 'round';
+    ctx.lineJoin = 'round';
     ctx.lineWidth = strich.breite;
 
     if (strich.werkzeug === 'textmarker') {
       ctx.globalCompositeOperation = 'multiply';
       ctx.strokeStyle = KONFIGURATION.TEXTMARKER_FARBE;
-      ctx.globalAlpha = 1;
     } else {
       ctx.globalCompositeOperation = 'source-over';
       ctx.strokeStyle = strich.farbe;
-      ctx.globalAlpha = 1;
     }
+    ctx.globalAlpha = 1;
 
     ctx.beginPath();
     ctx.moveTo(strich.punkte[0].x, strich.punkte[0].y);
-
-    // Kurve durch alle Punkte (glatter als Liniensegmente)
     for (let i = 1; i < strich.punkte.length - 1; i++) {
-      const mx = (strich.punkte[i].x + strich.punkte[i + 1].x) / 2;
-      const my = (strich.punkte[i].y + strich.punkte[i + 1].y) / 2;
+      const mx = (strich.punkte[i].x + strich.punkte[i+1].x) / 2;
+      const my = (strich.punkte[i].y + strich.punkte[i+1].y) / 2;
       ctx.quadraticCurveTo(strich.punkte[i].x, strich.punkte[i].y, mx, my);
     }
-
-    // Letzter Punkt
-    const letzter = strich.punkte[strich.punkte.length - 1];
-    ctx.lineTo(letzter.x, letzter.y);
+    const lp = strich.punkte[strich.punkte.length - 1];
+    ctx.lineTo(lp.x, lp.y);
     ctx.stroke();
-
     ctxReset(ctx);
   });
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   7. UNDO / REDO
+   8. UNDO / REDO
 ════════════════════════════════════════════════════════════════════ */
 
-/**
- * Speichert einen Canvas-Snapshot in den Undo-Verlauf einer Seite.
- * Wird VOR jedem neuen Strich aufgerufen.
- *
- * @param {number} seite
- */
+/** Canvas-Snapshot in Undo-Verlauf speichern (vor jedem Strich). */
 function undoSnapshot(seite) {
   const canvas = zeichenCanvas(seite);
   if (!canvas) return;
-
   if (!Z.undoVerlauf[seite]) Z.undoVerlauf[seite] = [];
   if (!Z.redoVerlauf[seite]) Z.redoVerlauf[seite] = [];
-
-  // Maximale Undo-Tiefe: 30 Schritte pro Seite
-  const verlauf = Z.undoVerlauf[seite];
-  verlauf.push(canvas.toDataURL());
-  if (verlauf.length > 30) verlauf.shift();
-
-  // Redo-Stack leeren bei neuem Strich
+  const v = Z.undoVerlauf[seite];
+  v.push(canvas.toDataURL());
+  if (v.length > 30) v.shift();
   Z.redoVerlauf[seite] = [];
 }
 
-/** Undo: letzten Canvas-Zustand wiederherstellen. */
+/** Undo: letzten Zustand wiederherstellen. */
 function undoAusfuehren() {
-  const seite   = Z.aktiveSeite;
-  const verlauf = Z.undoVerlauf[seite];
-  if (!verlauf?.length) {
-    toast('Kein weiterer Rückgängig-Schritt.', 'info', 1500);
-    return;
+  const seite = Z.aktiveSeite;
+  if (!Z.undoVerlauf[seite]?.length) {
+    toast('Kein weiterer Rückgängig-Schritt.', 'info', 1500); return;
   }
-
   const canvas = zeichenCanvas(seite);
   if (!canvas) return;
-
   if (!Z.redoVerlauf[seite]) Z.redoVerlauf[seite] = [];
   Z.redoVerlauf[seite].push(canvas.toDataURL());
-
-  const snapshot = verlauf.pop();
-  snapshotWiederherstellen(canvas, snapshot);
-
-  // Annotations-Array ebenfalls zurücksetzen
-  // (vereinfacht: letzten Strich entfernen)
-  if (Z.annotationen[seite]?.length) {
-    Z.annotationen[seite].pop();
-  }
+  snapshotLaden(canvas, Z.undoVerlauf[seite].pop());
+  if (Z.annotationen[seite]?.length) Z.annotationen[seite].pop();
 }
 
 /** Redo: rückgängig gemachten Schritt wiederholen. */
 function redoAusfuehren() {
   const seite = Z.aktiveSeite;
-  const stack = Z.redoVerlauf[seite];
-  if (!stack?.length) {
-    toast('Kein weiterer Wiederholen-Schritt.', 'info', 1500);
-    return;
+  if (!Z.redoVerlauf[seite]?.length) {
+    toast('Kein weiterer Wiederholen-Schritt.', 'info', 1500); return;
   }
-
   const canvas = zeichenCanvas(seite);
   if (!canvas) return;
-
   if (!Z.undoVerlauf[seite]) Z.undoVerlauf[seite] = [];
   Z.undoVerlauf[seite].push(canvas.toDataURL());
-
-  const snapshot = stack.pop();
-  snapshotWiederherstellen(canvas, snapshot);
+  snapshotLaden(canvas, Z.redoVerlauf[seite].pop());
 }
 
-/**
- * Lädt einen DataURL-Snapshot zurück auf einen Canvas.
- *
- * @param {HTMLCanvasElement} canvas
- * @param {string} dataUrl
- */
-function snapshotWiederherstellen(canvas, dataUrl) {
+/** DataURL-Snapshot auf Canvas zurückladen. */
+function snapshotLaden(canvas, dataUrl) {
   const ctx = canvas.getContext('2d');
   const img = new Image();
-  img.onload = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-  };
+  img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0); };
   img.src = dataUrl;
 }
 
-/** Löscht alle Annotationen der aktuellen Seite nach Bestätigung. */
+/** Alle Annotationen der aktuellen Seite löschen. */
 function seiteLeeren() {
   const seite = Z.aktiveSeite;
   if (!window.confirm(`Alle Annotationen auf Seite ${seite} löschen?`)) return;
-
   undoSnapshot(seite);
   const canvas = zeichenCanvas(seite);
-  if (canvas) {
-    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-  }
+  if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   Z.annotationen[seite] = [];
   toast(`Seite ${seite} geleert.`, 'info');
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   8. LEHRER-LAYER
+   9. LEHRER-LAYER
 ════════════════════════════════════════════════════════════════════ */
 
-/** Schaltet den Lehrer-Layer ein oder aus. */
+/** Lehrer-Layer ein-/ausblenden. */
 function lehrerLayerUmschalten() {
   Z.lehrerAktiv = !Z.lehrerAktiv;
-  const an = Z.lehrerAktiv;
+  D.btnLehrerLayer.classList.toggle('aktiv', Z.lehrerAktiv);
+  D.btnLehrerLayer.setAttribute('aria-pressed', Z.lehrerAktiv ? 'true' : 'false');
+  D.iconAugeAuf.style.display = Z.lehrerAktiv ? 'block' : 'none';
+  D.iconAugeZu.style.display  = Z.lehrerAktiv ? 'none'  : 'block';
 
-  D.btnLehrerLayer.classList.toggle('aktiv', an);
-  D.btnLehrerLayer.setAttribute('aria-pressed', an ? 'true' : 'false');
-  D.iconAugeAuf.style.display = an ? 'block' : 'none';
-  D.iconAugeZu.style.display  = an ? 'none'  : 'block';
-
-  // Alle Lehrer-Canvas-Elemente aktualisieren
   for (let s = 1; s <= Z.seitenAnzahl; s++) {
-    const canvas = lehrerCanvas(s);
-    if (!canvas) continue;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (an && Z.lehrerAnnotationen[s]?.length) {
-      ctx.globalAlpha = 0.72; // Lehrer-Layer leicht transparent
+    const lc = lehrerCanvas(s);
+    if (!lc) continue;
+    const ctx = lc.getContext('2d');
+    ctx.clearRect(0, 0, lc.width, lc.height);
+    if (Z.lehrerAktiv && Z.lehrerAnnotationen[s]?.length) {
+      ctx.globalAlpha = 0.72;
       stricheZeichnen(ctx, Z.lehrerAnnotationen[s]);
       ctx.globalAlpha = 1;
     }
   }
-
-  toast(an ? 'Lehrer-Layer sichtbar' : 'Lehrer-Layer ausgeblendet', 'info', 1400);
+  toast(Z.lehrerAktiv ? 'Lehrer-Layer sichtbar' : 'Lehrer-Layer ausgeblendet', 'info', 1400);
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   9. SPOTLIGHT
+   10. SPOTLIGHT mit 8-Griff-System
+   Jeder der 8 Griffe (nw, n, ne, e, se, s, sw, w) zieht eine andere
+   Kombination von Kanten. Das Fenster-Rechteck wird dadurch korrekt
+   verkleinert oder vergrößert ohne zu springen.
+
+   Griff-Logik:
+     nw → x, y, b, h ändern (linke + obere Kante)
+     n  → y, h ändern (nur obere Kante)
+     ne → y, b, h ändern (rechte + obere Kante)
+     e  → b ändern (nur rechte Kante)
+     se → b, h ändern (rechte + untere Kante)
+     s  → h ändern (nur untere Kante)
+     sw → x, b, h ändern (linke + untere Kante)
+     w  → x, b ändern (nur linke Kante)
+     mitte → x, y (verschieben)
 ════════════════════════════════════════════════════════════════════ */
 
 /** Spotlight einschalten. */
@@ -825,7 +723,7 @@ function spotlightAn() {
   D.btnSpotlight.classList.add('aktiv');
   D.btnSpotlight.setAttribute('aria-pressed', 'true');
   spotlightAktualisieren();
-  toast('Spotlight aktiv – ziehen zum Verschieben, Rand zum Skalieren', 'info', 2800);
+  toast('Spotlight aktiv – Mitte ziehen zum Bewegen, Griffe zum Skalieren', 'info', 3000);
 }
 
 /** Spotlight ausschalten. */
@@ -837,13 +735,13 @@ function spotlightAus() {
   D.btnSpotlight.setAttribute('aria-pressed', 'false');
 }
 
-/** Spotlight ein-/ausschalten. */
+/** Spotlight umschalten. */
 function spotlightUmschalten() {
   Z.spotlightAktiv ? spotlightAus() : spotlightAn();
 }
 
 /**
- * Aktualisiert Position, Größe und Masken-Clip des Spotlight-Fensters.
+ * Spotlight-Position, -Größe und Masken-Clip aktualisieren.
  * Wird bei jedem Touch-Move aufgerufen.
  */
 function spotlightAktualisieren() {
@@ -861,18 +759,16 @@ function spotlightAktualisieren() {
   const H = window.innerHeight;
 
   if (Z.spotlightForm === 'oval') {
-    // Ellipsen-Maske via radial-gradient
+    // Oval: Ellipsen-Maske via radial-gradient
     const cx = f.x + f.b / 2;
     const cy = f.y + f.h / 2;
-    const rx = f.b / 2;
-    const ry = f.h / 2;
-    maske.style.webkitMaskImage =
-      `radial-gradient(ellipse ${rx}px ${ry}px at ${cx}px ${cy}px,
-         transparent 99%, black 100%)`;
-    maske.style.maskImage = maske.style.webkitMaskImage;
-    maske.style.clipPath  = '';
+    const mask = `radial-gradient(ellipse ${f.b/2}px ${f.h/2}px at ${cx}px ${cy}px,
+      transparent 99%, black 100%)`;
+    maske.style.webkitMaskImage = mask;
+    maske.style.maskImage       = mask;
+    maske.style.clipPath        = '';
   } else {
-    // Rechteck-Maske via clip-path polygon mit Loch
+    // Rechteck: Polygon mit Loch (äußeres Rechteck minus inneres Rechteck)
     maske.style.webkitMaskImage = '';
     maske.style.maskImage       = '';
     maske.style.clipPath = `polygon(
@@ -887,79 +783,195 @@ function spotlightAktualisieren() {
 }
 
 /**
- * Ermittelt die Spotlight-Aktion basierend auf der Touch-Position.
- * Rand (30px) → Größe ändern. Mitte → verschieben.
+ * Ermittelt ob ein Touch-Punkt im Fenster-Inneren liegt (→ 'mitte').
+ * Griffe melden sich selbst über ihr data-griff-Attribut.
  *
- * @param {number} x
- * @param {number} y
- * @returns {'bewegen'|'groesse'|null}
+ * @param {number} x  – clientX
+ * @param {number} y  – clientY
+ * @returns {'mitte'|null}
  */
-function spotAktionErmitteln(x, y) {
-  const f   = Z.spotFenster;
-  const rand = 32;
-  const imFenster = x >= f.x && x <= f.x + f.b && y >= f.y && y <= f.y + f.h;
-  if (!imFenster) return null;
-  const amRand = x <= f.x + rand || x >= f.x + f.b - rand ||
-                 y <= f.y + rand || y >= f.y + f.h - rand;
-  return amRand ? 'groesse' : 'bewegen';
+function spotFensterBereichErmitteln(x, y) {
+  const f = Z.spotFenster;
+  // Kleine Rand-Zone (20px) ist für Griffe reserviert → nur echte Mitte
+  const rand = 20;
+  const innen =
+    x > f.x + rand && x < f.x + f.b - rand &&
+    y > f.y + rand && y < f.y + f.h - rand;
+  return innen ? 'mitte' : null;
 }
 
-/** Initialisiert alle Spotlight-Listener. */
+/**
+ * Spotlight-Fenster entsprechend dem aktiven Griff bewegen / skalieren.
+ * Wird bei jedem touchmove / mousemove aufgerufen.
+ *
+ * @param {number} cx  – aktuelle clientX
+ * @param {number} cy  – aktuelle clientY
+ */
+function spotGriffZiehen(cx, cy) {
+  if (!Z.spotGriff || !Z.spotDragStart) return;
+
+  const s = Z.spotDragStart;   // Snapshot beim Drag-Start
+  const dx = cx - s.startX;
+  const dy = cy - s.startY;
+  const f  = Z.spotFenster;
+  const MIN_B = KONFIGURATION.SPOTLIGHT_MIN_B;
+  const MIN_H = KONFIGURATION.SPOTLIGHT_MIN_H;
+
+  // Jeder Griff modifiziert bestimmte Eigenschaften des Rechtecks.
+  // Ecken verändern immer 2 Kanten gleichzeitig.
+  switch (Z.spotGriff) {
+
+    case 'mitte':
+      // Nur verschieben, keine Größenänderung
+      f.x = Math.max(0, Math.min(s.fx + dx, window.innerWidth  - f.b));
+      f.y = Math.max(0, Math.min(s.fy + dy, window.innerHeight - f.h));
+      break;
+
+    case 'se':
+      // Rechte + Untere Kante → Breite und Höhe wachsen nach rechts-unten
+      f.b = Math.max(MIN_B, s.fb + dx);
+      f.h = Math.max(MIN_H, s.fh + dy);
+      break;
+
+    case 'sw':
+      // Linke + Untere Kante → x verschiebt sich, Breite schrumpft, Höhe wächst
+      f.b = Math.max(MIN_B, s.fb - dx);
+      f.x = s.fx + s.fb - f.b;   // Rechte Kante fixiert
+      f.h = Math.max(MIN_H, s.fh + dy);
+      break;
+
+    case 'ne':
+      // Rechte + Obere Kante → Breite wächst, y verschiebt sich
+      f.b = Math.max(MIN_B, s.fb + dx);
+      f.h = Math.max(MIN_H, s.fh - dy);
+      f.y = s.fy + s.fh - f.h;   // Untere Kante fixiert
+      break;
+
+    case 'nw':
+      // Linke + Obere Kante → x+y verschieben sich, b+h schrumpfen
+      f.b = Math.max(MIN_B, s.fb - dx);
+      f.h = Math.max(MIN_H, s.fh - dy);
+      f.x = s.fx + s.fb - f.b;
+      f.y = s.fy + s.fh - f.h;
+      break;
+
+    case 'e':
+      // Nur rechte Kante → Breite wächst nach rechts
+      f.b = Math.max(MIN_B, s.fb + dx);
+      break;
+
+    case 'w':
+      // Nur linke Kante → x verschiebt sich, Breite schrumpft
+      f.b = Math.max(MIN_B, s.fb - dx);
+      f.x = s.fx + s.fb - f.b;
+      break;
+
+    case 'n':
+      // Nur obere Kante → y verschiebt sich, Höhe schrumpft
+      f.h = Math.max(MIN_H, s.fh - dy);
+      f.y = s.fy + s.fh - f.h;
+      break;
+
+    case 's':
+      // Nur untere Kante → Höhe wächst nach unten
+      f.h = Math.max(MIN_H, s.fh + dy);
+      break;
+  }
+
+  spotlightAktualisieren();
+}
+
+/** Initialisiert alle Spotlight-Listener (Griffe + Overlay + Toolbar). */
 function spotlightInit() {
-  const ov = D.spotlightOverlay;
+  // Griffe per querySelectorAll sammeln (nach DOM-Aufbau)
+  D.spotGriffe = document.querySelectorAll('.spot-griff');
 
-  // ── Touch ──────────────────────────────────────────────────────
-  ov.addEventListener('touchstart', e => {
+  const ov  = D.spotlightOverlay;
+  const fen = D.spotlightFenster;
+
+  // ── Griff-Listener (Touch) ─────────────────────────────────────
+  // Jeder Griff registriert seinen eigenen touchstart-Listener.
+  // touchmove und touchend laufen über document (um schnelle Bewegungen
+  // nicht zu verlieren wenn der Finger kurz vom Griff rutscht).
+  D.spotGriffe.forEach(griff => {
+
+    griff.addEventListener('touchstart', e => {
+      if (!Z.spotlightAktiv) return;
+      e.preventDefault();
+      e.stopPropagation();   // Nicht ans Overlay weitergeben
+      const t = e.touches[0];
+      Z.spotGriff    = griff.dataset.griff;
+      Z.spotDragStart = {
+        startX: t.clientX, startY: t.clientY,
+        fx: Z.spotFenster.x, fy: Z.spotFenster.y,
+        fb: Z.spotFenster.b, fh: Z.spotFenster.h,
+      };
+    }, { passive: false });
+
+    // Maus (Desktop)
+    griff.addEventListener('mousedown', e => {
+      if (!Z.spotlightAktiv) return;
+      e.preventDefault();
+      e.stopPropagation();
+      Z.spotGriff    = griff.dataset.griff;
+      Z.spotDragStart = {
+        startX: e.clientX, startY: e.clientY,
+        fx: Z.spotFenster.x, fy: Z.spotFenster.y,
+        fb: Z.spotFenster.b, fh: Z.spotFenster.h,
+      };
+    });
+  });
+
+  // ── Fenster-Mitte: verschieben ─────────────────────────────────
+  fen.addEventListener('touchstart', e => {
     if (!Z.spotlightAktiv) return;
+    // Griff-Elemente senden zuerst ihr eigenes Event → prüfen ob Griff
+    if (e.target.classList.contains('spot-griff')) return;
     e.preventDefault();
     const t = e.touches[0];
-    Z.spotAktion = spotAktionErmitteln(t.clientX, t.clientY);
-    if (Z.spotAktion === 'bewegen') {
-      Z.spotOffset = {
-        dx: t.clientX - Z.spotFenster.x,
-        dy: t.clientY - Z.spotFenster.y,
-      };
-    } else if (Z.spotAktion === 'groesse') {
-      Z.spotOffset = {
-        sx: t.clientX, sy: t.clientY,
-        sb: Z.spotFenster.b, sh: Z.spotFenster.h,
+    const bereich = spotFensterBereichErmitteln(t.clientX, t.clientY);
+    if (bereich === 'mitte') {
+      Z.spotGriff    = 'mitte';
+      Z.spotDragStart = {
+        startX: t.clientX, startY: t.clientY,
+        fx: Z.spotFenster.x, fy: Z.spotFenster.y,
+        fb: Z.spotFenster.b, fh: Z.spotFenster.h,
       };
     }
   }, { passive: false });
 
-  ov.addEventListener('touchmove', e => {
-    if (!Z.spotlightAktiv || !Z.spotAktion) return;
-    e.preventDefault();
-    const t = e.touches[0];
-    _spotBewegen(t.clientX, t.clientY);
-  }, { passive: false });
-
-  ov.addEventListener('touchend', e => {
-    e.preventDefault();
-    Z.spotAktion = null;
-    Z.spotOffset = null;
-  }, { passive: false });
-
-  // ── Maus (Desktop) ─────────────────────────────────────────────
-  let mausTaste = false;
-  ov.addEventListener('mousedown', e => {
+  fen.addEventListener('mousedown', e => {
     if (!Z.spotlightAktiv) return;
-    mausTaste = true;
-    Z.spotAktion = spotAktionErmitteln(e.clientX, e.clientY);
-    if (Z.spotAktion === 'bewegen') {
-      Z.spotOffset = { dx: e.clientX - Z.spotFenster.x, dy: e.clientY - Z.spotFenster.y };
-    } else if (Z.spotAktion === 'groesse') {
-      Z.spotOffset = { sx: e.clientX, sy: e.clientY, sb: Z.spotFenster.b, sh: Z.spotFenster.h };
+    if (e.target.classList.contains('spot-griff')) return;
+    const bereich = spotFensterBereichErmitteln(e.clientX, e.clientY);
+    if (bereich === 'mitte') {
+      Z.spotGriff    = 'mitte';
+      Z.spotDragStart = {
+        startX: e.clientX, startY: e.clientY,
+        fx: Z.spotFenster.x, fy: Z.spotFenster.y,
+        fb: Z.spotFenster.b, fh: Z.spotFenster.h,
+      };
     }
   });
+
+  // ── Globale Move/End-Listener (Touch + Maus) ──────────────────
+  document.addEventListener('touchmove', e => {
+    if (!Z.spotlightAktiv || !Z.spotGriff) return;
+    e.preventDefault();
+    spotGriffZiehen(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: false });
+
+  document.addEventListener('touchend', e => {
+    if (Z.spotGriff) { Z.spotGriff = null; Z.spotDragStart = null; }
+  }, { passive: false });
+
   document.addEventListener('mousemove', e => {
-    if (!mausTaste || !Z.spotlightAktiv || !Z.spotAktion) return;
-    _spotBewegen(e.clientX, e.clientY);
+    if (!Z.spotlightAktiv || !Z.spotGriff) return;
+    spotGriffZiehen(e.clientX, e.clientY);
   });
+
   document.addEventListener('mouseup', () => {
-    mausTaste = false;
-    Z.spotAktion = null;
-    Z.spotOffset = null;
+    Z.spotGriff = null; Z.spotDragStart = null;
   });
 
   // ── Toolbar-Buttons ────────────────────────────────────────────
@@ -982,483 +994,264 @@ function spotlightInit() {
   D.btnSpotSchliessen.addEventListener('click', spotlightAus);
 }
 
-/**
- * Interne Hilfsfunktion: Fenster bewegen oder skalieren.
- * @param {number} cx  – aktuelle Cursor-X
- * @param {number} cy  – aktuelle Cursor-Y
- */
-function _spotBewegen(cx, cy) {
-  const f = Z.spotFenster;
-  const o = Z.spotOffset;
-
-  if (Z.spotAktion === 'bewegen') {
-    f.x = Math.max(0, Math.min(cx - o.dx, window.innerWidth  - f.b));
-    f.y = Math.max(0, Math.min(cy - o.dy, window.innerHeight - f.h));
-  } else if (Z.spotAktion === 'groesse') {
-    f.b = Math.max(KONFIGURATION.SPOTLIGHT_MIN_B, o.sb + (cx - o.sx));
-    f.h = Math.max(KONFIGURATION.SPOTLIGHT_MIN_H, o.sh + (cy - o.sy));
-  }
-  spotlightAktualisieren();
-}
-
 
 /* ═══════════════════════════════════════════════════════════════════
-   10. ZOOM (Pinch-to-Zoom + Buttons)
+   11. ZOOM (Pinch-to-Zoom + Buttons)
 ════════════════════════════════════════════════════════════════════ */
 
-/**
- * Setzt den Zoom-Faktor und aktualisiert die CSS-Transformation
- * des PDF-Containers sowie die Zoom-Anzeige.
- *
- * @param {number} neuerZoom
- */
+/** Zoom-Faktor setzen und CSS + Anzeige aktualisieren. */
 function zoomSetzen(neuerZoom) {
-  Z.zoom = Math.min(
-    KONFIGURATION.ZOOM_MAX,
-    Math.max(KONFIGURATION.ZOOM_MIN, neuerZoom)
-  );
-  // Transformation auf den PDF-Container anwenden (nicht den Wrapper!).
-  // So kann der Wrapper weiterhin scrollen.
+  Z.zoom = Math.min(KONFIGURATION.ZOOM_MAX,
+            Math.max(KONFIGURATION.ZOOM_MIN, neuerZoom));
   D.pdfContainer.style.transform       = `scale(${Z.zoom})`;
   D.pdfContainer.style.transformOrigin = 'top center';
   D.zoomAnzeige.textContent = `${Math.round(Z.zoom * 100)}%`;
 }
 
-/** Verarbeitet die Pinch-Geste (touchmove mit 2 Fingern). */
+/** Pinch-Geste verarbeiten (2-Finger-Touch auf dem Zoom-Wrapper). */
 function pinchBewegen(e) {
   if (e.touches.length !== 2) return;
   e.preventDefault();
-
   const abstand = pinchAbstand(e.touches);
-
-  if (Z.pinch === null) {
-    // Pinch-Start: Startabstand und Startzoom merken
-    Z.pinch = { abstand, zoomStart: Z.zoom };
-    return;
-  }
-
-  const faktor = abstand / Z.pinch.abstand;
-  zoomSetzen(Z.pinch.zoomStart * faktor);
+  if (!Z.pinch) { Z.pinch = { abstand, zoomStart: Z.zoom }; return; }
+  zoomSetzen(Z.pinch.zoomStart * (abstand / Z.pinch.abstand));
 }
 
-/** Initialisiert Zoom-Buttons und globale Pinch-Listener. */
+/** Zoom-Buttons und Pinch-Listener initialisieren. */
 function zoomInit() {
-  D.btnZoomPlus.addEventListener('click', () =>
-    zoomSetzen(Z.zoom + KONFIGURATION.ZOOM_SCHRITT));
-  D.btnZoomMinus.addEventListener('click', () =>
-    zoomSetzen(Z.zoom - KONFIGURATION.ZOOM_SCHRITT));
+  D.btnZoomPlus.addEventListener('click',  () => zoomSetzen(Z.zoom + KONFIGURATION.ZOOM_SCHRITT));
+  D.btnZoomMinus.addEventListener('click', () => zoomSetzen(Z.zoom - KONFIGURATION.ZOOM_SCHRITT));
   D.btnZoomReset.addEventListener('click', () => zoomSetzen(1.0));
 
-  // Pinch auf dem Zoom-Wrapper (nicht auf einzelnen Canvas)
+  // Pinch auf dem Zoom-Wrapper (nur im Zeichen-Modus, weil im Scroll-Modus
+  // der Browser native touch-action:pan bekommt und Pinch separat behandelt)
   D.zoomWrapper.addEventListener('touchstart', e => {
-    if (e.touches.length === 2) {
-      Z.pinch = null; // Wird in pinchBewegen() gesetzt
-    }
+    if (e.touches.length === 2) Z.pinch = null;
   }, { passive: false });
 
   D.zoomWrapper.addEventListener('touchmove', e => {
-    if (e.touches.length === 2) {
+    if (e.touches.length === 2 && Z.modus === 'zeichnen') {
       e.preventDefault();
       pinchBewegen(e);
     }
   }, { passive: false });
 
   D.zoomWrapper.addEventListener('touchend', () => {
-    if (Z.pinch !== null) Z.pinch = null;
+    if (Z.pinch) Z.pinch = null;
   }, { passive: true });
 
-  // Mausrad auf Desktop
+  // Mausrad + Strg (Desktop-Vorschau)
   D.zoomWrapper.addEventListener('wheel', e => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
-      const delta = e.deltaY > 0 ? -KONFIGURATION.ZOOM_SCHRITT : KONFIGURATION.ZOOM_SCHRITT;
-      zoomSetzen(Z.zoom + delta);
+      zoomSetzen(Z.zoom + (e.deltaY > 0 ? -KONFIGURATION.ZOOM_SCHRITT : KONFIGURATION.ZOOM_SCHRITT));
     }
   }, { passive: false });
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   11. PDF-RENDERING (pdf.js)
+   12. PDF-RENDERING (pdf.js)
 ════════════════════════════════════════════════════════════════════ */
 
-/**
- * Lädt eine PDF-Datei, rendert alle Seiten und baut die Canvas-Struktur auf.
- *
- * @param {File} datei
- */
+/** PDF-Datei laden und alle Seiten rendern. */
 async function pdfLaden(datei) {
   ladeAnzeige(true, 'PDF wird geöffnet…');
-
   try {
-    // Rohdaten lesen – originale Bytes für den späteren pdf-lib-Export aufbewahren
-    const arrayBuffer = await datei.arrayBuffer();
-    Z.pdfBytes = new Uint8Array(arrayBuffer);
+    const ab = await datei.arrayBuffer();
+    Z.pdfBytes = new Uint8Array(ab);
 
-    // pdf.js Worker konfigurieren
     pdfjsLib.GlobalWorkerOptions.workerSrc = KONFIGURATION.PDFJS_WORKER;
-
-    // PDF-Dokument laden (Kopie damit das Original unberührt bleibt)
     Z.pdfDokument  = await pdfjsLib.getDocument({ data: Z.pdfBytes.slice() }).promise;
     Z.seitenAnzahl = Z.pdfDokument.numPages;
 
     // Zustand zurücksetzen
-    Z.annotationen      = {};
-    Z.lehrerAnnotationen = {};
-    Z.undoVerlauf       = {};
-    Z.redoVerlauf       = {};
-    Z.aktiveSeite       = 1;
-    Z.viewports         = {};
+    Object.assign(Z, {
+      annotationen: {}, lehrerAnnotationen: {}, undoVerlauf: {},
+      redoVerlauf: {}, aktiveSeite: 1, viewports: {},
+    });
     zoomSetzen(1.0);
 
-    // UI vorbereiten
-    D.startAnzeige.style.display  = 'none';
-    D.pdfContainer.innerHTML      = '';
-    D.pdfContainer.style.display  = 'flex';
+    D.startAnzeige.style.display = 'none';
+    D.pdfContainer.innerHTML     = '';
+    D.pdfContainer.style.display = 'flex';
 
-    // Zoom-Wrapper befüllen (falls noch nicht geschehen)
-    if (!D.zoomWrapper.contains(D.pdfContainer)) {
-      D.zoomWrapper.appendChild(D.pdfContainer);
-    }
-
-    // Alle Seiten sequenziell rendern
     for (let i = 1; i <= Z.seitenAnzahl; i++) {
       ladeAnzeige(true, `Seite ${i} / ${Z.seitenAnzahl} wird gerendert…`);
       await pdfSeiteRendern(i);
     }
 
-    // Zoom-Steuerung einblenden
     D.zoomSteuerung.style.display = 'flex';
-
     toast(`„${datei.name}" geladen (${Z.seitenAnzahl} Seiten)`, 'erfolg');
 
-  } catch (fehler) {
-    console.error('[EduLayer] PDF-Ladefehler:', fehler);
-    toast('Fehler beim Laden der PDF. Ist die Datei gültig?', 'fehler', 4000);
+  } catch (err) {
+    console.error('[EduLayer] PDF-Ladefehler:', err);
+    toast('Fehler beim Laden der PDF.', 'fehler', 4000);
   } finally {
     ladeAnzeige(false);
   }
 }
 
 /**
- * Rendert eine einzelne PDF-Seite.
+ * Eine PDF-Seite rendern.
  *
- * Koordinaten-Kopplung (kein Drift!):
- *   - pdf.js liefert einen Viewport mit exakter Pixel-Größe.
- *   - PDF-Canvas und Zeichen-Canvas haben exakt dieselben Pixelmaße.
- *   - CSS-Größe = Canvas-Größe (kein Strecken durch CSS).
- *   - Zoom verändert nur den übergeordneten Container, nie die Canvas-Pixel.
- *   → Annotationskoordinaten sind immer im PDF-Koordinatenraum gespeichert.
- *
- * @param {number} seitenNummer
+ * Koordinaten-Kopplung (kein Drift):
+ * PDF-Canvas und Zeichen-Canvas haben exakt dieselben Pixelmaße.
+ * CSS-Größe = Pixel-Größe (kein Strecken durch CSS).
+ * Zoom verändert nur den äußeren Container, nie die Canvas-Pixel.
  */
-async function pdfSeiteRendern(seitenNummer) {
-  const seite    = await Z.pdfDokument.getPage(seitenNummer);
-
-  // Viewport mit konfiguriertem Skalierungsfaktor
+async function pdfSeiteRendern(nr) {
+  const seite    = await Z.pdfDokument.getPage(nr);
   const viewport = seite.getViewport({ scale: KONFIGURATION.PDF_SCALE });
   const W = Math.floor(viewport.width);
   const H = Math.floor(viewport.height);
 
-  // Viewport-Daten für den Export merken
-  Z.viewports[seitenNummer] = { breite: W, hoehe: H, scale: KONFIGURATION.PDF_SCALE };
+  Z.viewports[nr] = { breite: W, hoehe: H, scale: KONFIGURATION.PDF_SCALE };
 
-  // ── Container ─────────────────────────────────────────────────
-  const container         = document.createElement('div');
-  container.className     = 'seite-container';
-  container.dataset.seite = seitenNummer;
-  container.style.width   = `${W}px`;
-  container.style.height  = `${H}px`;
+  // Container
+  const cont         = document.createElement('div');
+  cont.className     = 'seite-container';
+  cont.dataset.seite = nr;
+  cont.style.width   = `${W}px`;
+  cont.style.height  = `${H}px`;
 
-  // ── PDF-Canvas (Hintergrund, von pdf.js gefüllt) ──────────────
-  const pdfCanvas         = document.createElement('canvas');
-  pdfCanvas.className     = 'pdf-canvas';
-  pdfCanvas.width         = W;
-  pdfCanvas.height        = H;
-  // CSS-Größe == Canvas-Pixel-Größe (kein DevicePixelRatio-Trick nötig
-  // weil PDF_SCALE den Schärfe-Faktor bereits enthält)
-  pdfCanvas.style.width   = `${W}px`;
-  pdfCanvas.style.height  = `${H}px`;
-  container.appendChild(pdfCanvas);
+  // PDF-Canvas
+  const pdfC         = document.createElement('canvas');
+  pdfC.className     = 'pdf-canvas';
+  pdfC.width         = W;
+  pdfC.height        = H;
+  pdfC.style.width   = `${W}px`;
+  pdfC.style.height  = `${H}px`;
+  cont.appendChild(pdfC);
 
-  // ── Zeichen-Canvas (transparent, Touch-Events aktiv) ──────────
-  const zCanvas           = document.createElement('canvas');
-  zCanvas.className       = 'zeichen-canvas';
-  zCanvas.width           = W;
-  zCanvas.height          = H;
-  zCanvas.dataset.werkzeug = Z.werkzeug;
-  container.appendChild(zCanvas);
+  // Zeichen-Canvas
+  const zC           = document.createElement('canvas');
+  zC.className       = 'zeichen-canvas';
+  zC.width           = W;
+  zC.height          = H;
+  zC.dataset.werkzeug = Z.werkzeug;
+  cont.appendChild(zC);
 
-  // ── Lehrer-Canvas (oberster Layer, keine Touch-Events) ────────
-  const lCanvas           = document.createElement('canvas');
-  lCanvas.className       = 'lehrer-canvas';
-  lCanvas.width           = W;
-  lCanvas.height          = H;
-  lCanvas.setAttribute('aria-hidden', 'true');
-  container.appendChild(lCanvas);
+  // Lehrer-Canvas
+  const lC           = document.createElement('canvas');
+  lC.className       = 'lehrer-canvas';
+  lC.width           = W;
+  lC.height          = H;
+  lC.setAttribute('aria-hidden', 'true');
+  cont.appendChild(lC);
 
-  D.pdfContainer.appendChild(container);
+  D.pdfContainer.appendChild(cont);
 
-  // ── PDF rendern ────────────────────────────────────────────────
-  await seite.render({
-    canvasContext: pdfCanvas.getContext('2d'),
-    viewport,
-  }).promise;
+  // PDF rendern
+  await seite.render({ canvasContext: pdfC.getContext('2d'), viewport }).promise;
 
-  // ── Zeichen-Listener registrieren ─────────────────────────────
-  zeichenListeners(zCanvas);
+  // Zeichen-Listener
+  zeichenListeners(zC);
 
-  // ── Intersection Observer: aktive Seite verfolgen ─────────────
-  // Wird für Undo/Redo verwendet (immer auf aktuell sichtbare Seite)
-  const observer = new IntersectionObserver(eintraege => {
+  // Aktive Seite per IntersectionObserver verfolgen
+  const obs = new IntersectionObserver(eintraege => {
     eintraege.forEach(e => {
-      if (e.isIntersecting && e.intersectionRatio >= 0.4) {
-        Z.aktiveSeite = seitenNummer;
-      }
+      if (e.isIntersecting && e.intersectionRatio >= 0.4) Z.aktiveSeite = nr;
     });
   }, { root: D.zoomWrapper, threshold: 0.4 });
-  observer.observe(container);
+  obs.observe(cont);
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   12. PDF-EXPORT (pdf-lib)
+   13. PDF-EXPORT (pdf-lib)
 ════════════════════════════════════════════════════════════════════ */
 
-/**
- * Exportiert die PDF mit eingebetteten Annotationen.
- *
- * Strategie:
- *   Für jede Seite wird der Zeichen-Canvas als PNG-Bild exportiert
- *   und über pdf-lib als XObject (Rasterbild) in die PDF-Seite
- *   eingebettet. Dabei werden:
- *     - Originalkoordinaten (PDF-Koordinatenraum) korrekt skaliert
- *     - Lehrer-Layer separat als zweites Bild eingebettet,
- *       wenn er aktiv ist
- *     - Laserpointer-Striche werden nie exportiert (flüchtig)
- *
- *   Vollständige Vektor-Einbettung via pdf-lib ist als Erweiterung
- *   vorbereitet (Funktion stricheAlsVektorenEinbetten).
- */
+/** PDF mit eingebetteten Annotationen speichern. */
 async function pdfSpeichern() {
-  if (!Z.pdfBytes) {
-    toast('Keine PDF geladen.', 'fehler');
-    return;
-  }
-
+  if (!Z.pdfBytes) { toast('Keine PDF geladen.', 'fehler'); return; }
   ladeAnzeige(true, 'PDF wird gespeichert…');
-
   try {
-    // ── Original-PDF laden ──────────────────────────────────────
     const pdfDoc = await PDFLib.PDFDocument.load(Z.pdfBytes);
     const seiten = pdfDoc.getPages();
 
     for (let s = 1; s <= Z.seitenAnzahl; s++) {
       const pdfSeite = seiten[s - 1];
-      const viewport = Z.viewports[s];
-      if (!viewport) continue;
-
-      // Verhältnis Canvas-Pixel → PDF-Punkte
-      // PDF-Seiten-Größe in Punkten
+      const vp = Z.viewports[s];
+      if (!vp) continue;
       const { width: pdfB, height: pdfH } = pdfSeite.getSize();
-      const skalX = pdfB / viewport.breite;
-      const skalY = pdfH / viewport.hoehe;
 
-      // ── Zeichen-Canvas als PNG exportieren ───────────────────
+      // Zeichen-Canvas einbetten
       const zC = zeichenCanvas(s);
-      if (zC && annotationenVorhanden(s)) {
-        const pngDataUrl = zC.toDataURL('image/png');
-        const pngBytes   = base64ZuBytes(pngDataUrl.split(',')[1]);
-        const pngBild    = await pdfDoc.embedPng(pngBytes);
-
-        // Bild über die gesamte Seite legen (deckt den Canvas-Bereich exakt ab)
-        pdfSeite.drawImage(pngBild, {
-          x:      0,
-          y:      0,
-          width:  pdfB,
-          height: pdfH,
-          opacity: 1,
-        });
+      if (zC && Z.annotationen[s]?.length) {
+        const bytes = base64ZuBytes(zC.toDataURL('image/png').split(',')[1]);
+        const bild  = await pdfDoc.embedPng(bytes);
+        pdfSeite.drawImage(bild, { x: 0, y: 0, width: pdfB, height: pdfH, opacity: 1 });
       }
 
-      // ── Lehrer-Canvas einbetten (nur wenn aktiv) ─────────────
+      // Lehrer-Layer einbetten (wenn aktiv)
       if (Z.lehrerAktiv && Z.lehrerAnnotationen[s]?.length) {
         const lC = lehrerCanvas(s);
         if (lC) {
-          const lDataUrl = lC.toDataURL('image/png');
-          const lBytes   = base64ZuBytes(lDataUrl.split(',')[1]);
-          const lBild    = await pdfDoc.embedPng(lBytes);
-
-          pdfSeite.drawImage(lBild, {
-            x: 0, y: 0,
-            width: pdfB, height: pdfH,
-            opacity: 0.72,
-          });
+          const bytes = base64ZuBytes(lC.toDataURL('image/png').split(',')[1]);
+          const bild  = await pdfDoc.embedPng(bytes);
+          pdfSeite.drawImage(bild, { x: 0, y: 0, width: pdfB, height: pdfH, opacity: 0.72 });
         }
       }
     }
 
-    // ── Metadaten setzen ────────────────────────────────────────
     pdfDoc.setCreator('EduLayer PWA');
     pdfDoc.setProducer('EduLayer – Datenschutz-konforme Unterrichts-App');
     pdfDoc.setModificationDate(new Date());
 
-    // ── PDF als Bytes serialisieren und herunterladen ────────────
-    const gespeicherteBytes = await pdfDoc.save();
-    const dateiname = `EduLayer_Annotation_${zeitstempel()}.pdf`;
-    download(gespeicherteBytes, dateiname);
+    const bytes = await pdfDoc.save();
+    const name  = `EduLayer_${zeitstempel()}.pdf`;
+    download(bytes, name);
+    toast(`Gespeichert: ${name}`, 'erfolg', 3500);
 
-    toast(`Gespeichert: ${dateiname}`, 'erfolg', 3500);
-
-  } catch (fehler) {
-    console.error('[EduLayer] Speicherfehler:', fehler);
-    toast('Fehler beim Speichern. Bitte erneut versuchen.', 'fehler', 4000);
+  } catch (err) {
+    console.error('[EduLayer] Speicherfehler:', err);
+    toast('Fehler beim Speichern.', 'fehler', 4000);
   } finally {
     ladeAnzeige(false);
   }
 }
 
-/**
- * Prüft ob für eine Seite Annotationen vorhanden sind.
- * @param {number} seite
- * @returns {boolean}
- */
-function annotationenVorhanden(seite) {
-  return !!(Z.annotationen[seite]?.length);
-}
-
-/**
- * Konvertiert einen Base64-String in ein Uint8Array.
- * Wird für pdf-lib benötigt (erwartet Rohbytes statt DataURL).
- *
- * @param {string} base64
- * @returns {Uint8Array}
- */
-function base64ZuBytes(base64) {
-  const binaer = atob(base64);
-  const bytes  = new Uint8Array(binaer.length);
-  for (let i = 0; i < binaer.length; i++) {
-    bytes[i] = binaer.charCodeAt(i);
-  }
-  return bytes;
-}
-
-/**
- * Erzeugt einen Zeitstempel für Dateinamen (Format: JJJJ-MM-TT_HH-MM).
- * @returns {string}
- */
-function zeitstempel() {
-  const d  = new Date();
-  const zw = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${zw(d.getMonth()+1)}-${zw(d.getDate())}` +
-         `_${zw(d.getHours())}-${zw(d.getMinutes())}`;
-}
-
-/**
- * ERWEITERUNG (vorbereitet, noch nicht aktiv):
- * Bettet Annotationen als native PDF-Vektoren ein.
- * Vorteil: skalierbar, kleiner, durchsuchbar.
- * Nachteil: Textmarker-Effekt (multiply) geht verloren.
- *
- * Aktivierung: In pdfSpeichern() statt drawImage() aufrufen.
- *
- * @param {Object} pdfLib  – die PDFLib-Instanz
- * @param {Object} pdfSeite – PDFPage-Objekt
- * @param {number} seite
- * @param {number} pdfB   – Seitenbreite in PDF-Punkten
- * @param {number} pdfH   – Seitenhöhe in PDF-Punkten
- * @param {number} viewport – { breite, hoehe, scale }
- */
-// function stricheAlsVektorenEinbetten(pdfLib, pdfSeite, seite, pdfB, pdfH, viewport) {
-//   const striche = Z.annotationen[seite] || [];
-//   const skalX = pdfB / viewport.breite;
-//   const skalY = pdfH / viewport.hoehe;
-//
-//   striche.forEach(strich => {
-//     if (strich.punkte.length < 2) return;
-//     // PDF-Koordinatensystem: Y-Achse zeigt nach oben → spiegeln
-//     const punkte = strich.punkte.map(p => ({
-//       x: p.x * skalX,
-//       y: pdfH - p.y * skalY,   // Y-Spiegelung!
-//     }));
-//     const [r, g, b] = hexZuRgb(strich.farbe);
-//     pdfSeite.drawLine({
-//       // pdf-lib unterstützt nur Geraden, keine Polylinie → TODO: Bezier
-//       start: { x: punkte[0].x, y: punkte[0].y },
-//       end:   { x: punkte[punkte.length-1].x, y: punkte[punkte.length-1].y },
-//       thickness: strich.breite * skalX,
-//       color: pdfLib.rgb(r, g, b),
-//       lineCap: pdfLib.LineCapStyle.Round,
-//     });
-//   });
-// }
-
 
 /* ═══════════════════════════════════════════════════════════════════
-   13. SERVICE WORKER
+   14. SERVICE WORKER
 ════════════════════════════════════════════════════════════════════ */
-
-/** Registriert den Service Worker für Offline-Betrieb. */
 function swRegistrieren() {
   if (!('serviceWorker' in navigator)) return;
-
   window.addEventListener('load', async () => {
     try {
       const reg = await navigator.serviceWorker.register('./sw.js');
-      console.log('[EduLayer] Service Worker registriert:', reg.scope);
-
+      console.log('[EduLayer] SW registriert:', reg.scope);
       reg.addEventListener('updatefound', () => {
-        const worker = reg.installing;
-        worker.addEventListener('statechange', () => {
-          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+        const w = reg.installing;
+        w.addEventListener('statechange', () => {
+          if (w.state === 'installed' && navigator.serviceWorker.controller)
             toast('Update verfügbar – Seite neu laden.', 'info', 6000);
-          }
         });
       });
-    } catch (err) {
-      console.warn('[EduLayer] SW-Registrierung fehlgeschlagen:', err);
+    } catch (e) {
+      console.warn('[EduLayer] SW fehlgeschlagen:', e);
     }
   });
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   14. APP-START
+   15. APP-START
 ════════════════════════════════════════════════════════════════════ */
-
-/**
- * Initialisiert die gesamte Anwendung.
- * Reihenfolge ist wichtig: DOM-Listener vor Zustand-Defaults.
- */
 function appStart() {
-  console.log('[EduLayer] Starte…');
+  console.log('[EduLayer] v3 startet…');
 
-  // ── Listener registrieren ──────────────────────────────────────
   sidebarInit();
   spotlightInit();
   zoomInit();
 
-  // ── Standard-Zustand ───────────────────────────────────────────
   werkzeugWaehlen('stift-duenn');
   farbeWaehlen(KONFIGURATION.STANDARD_FARBE);
 
-  // ── PDF-Container in den Zoom-Wrapper verschieben ─────────────
-  // (im HTML ist er direkt im main – wir verschieben ihn per JS)
-  D.zoomWrapper.appendChild(D.pdfContainer);
-
-  // ── Service Worker ─────────────────────────────────────────────
   swRegistrieren();
 
-  // ── iOS: Bounce-Effekt der ganzen Seite verhindern ────────────
-  // Scrollen nur im zoom-wrapper und spotlight-overlay erlauben
-  document.addEventListener('touchmove', e => {
-    const erlaubt = e.target.closest('.zoom-wrapper') ||
-                    e.target.closest('.spotlight-overlay') ||
-                    e.target.closest('.sidebar');
-    if (!erlaubt) e.preventDefault();
-  }, { passive: false });
-
-  // ── Drag-and-Drop: PDF direkt in den Browser ziehen ───────────
+  // Drag-and-Drop: PDF direkt in den Browser ziehen
   document.addEventListener('dragover', e => e.preventDefault());
   document.addEventListener('drop', e => {
     e.preventDefault();
@@ -1466,17 +1259,29 @@ function appStart() {
     if (datei?.type === 'application/pdf') pdfLaden(datei);
   });
 
-  // ── Orientierungswechsel ───────────────────────────────────────
+  // iOS: Bounce der gesamten Seite verhindern
+  // Erlaubt: zoom-wrapper (scrollt selbst), sidebar (scrollt selbst),
+  //          spotlight-overlay (verarbeitet eigene Events),
+  //          alle Buttons (touch-action:manipulation in CSS)
+  document.addEventListener('touchmove', e => {
+    const ziel = e.target;
+    const erlaubt =
+      ziel.closest('.zoom-wrapper')      ||
+      ziel.closest('.sidebar')           ||
+      ziel.closest('.spotlight-overlay') ||
+      ziel.closest('.zoom-steuerung')    ||
+      ziel.closest('.spotlight-toolbar');
+    if (!erlaubt) e.preventDefault();
+  }, { passive: false });
+
+  // Orientierungswechsel: Spotlight-Clip neu berechnen
   window.addEventListener('orientationchange', () => {
-    setTimeout(() => {
-      if (Z.spotlightAktiv) spotlightAktualisieren();
-    }, 350);
+    setTimeout(() => { if (Z.spotlightAktiv) spotlightAktualisieren(); }, 350);
   });
 
   console.log('[EduLayer] Bereit.');
 }
 
-// Starten sobald DOM fertig ist
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', appStart);
 } else {
