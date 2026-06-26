@@ -2,15 +2,20 @@
 <!--
   ╔══════════════════════════════════════════════════════════════════╗
   ║  EduLayer – Echtzeit-Annotations-PWA für den Unterricht         ║
-  ║  Datei: index.html                                              ║
-  ║  Zweck: Hauptstruktur der App, CDN-Einbindungen, Sidebar-Layout ║
+  ║  Datei: index.html  (Version 2)                                 ║
   ╚══════════════════════════════════════════════════════════════════╝
 
   ANPASSEN:
-  - Sidebar-Seite: Im <body>-Tag das Attribut data-sidebar="left"
-    oder data-sidebar="right" setzen.
-  - Farben der Werkzeuge: In style.css unter "Farbpalette" anpassen.
-  - App-Name: Den Text in <title> und .app-titel ändern.
+  - Sidebar-Seite: data-sidebar="right" oder "left" am <body>-Tag.
+  - App-Name:      <title> und .app-titel ändern.
+  - Icons:         Dateien in icons/ ablegen (Namen siehe unten).
+
+  BENÖTIGTE ICON-DATEIEN (selbst erstellen, in /icons/ ablegen):
+    icons/icon-192.png   – App-Icon 192×192 px  (für Android / PWA)
+    icons/icon-512.png   – App-Icon 512×512 px  (für Splash-Screen)
+    icons/apple-touch-icon.png – 180×180 px     (für iOS Home-Screen)
+    icons/favicon.ico    – 32×32 px             (Browser-Tab)
+  Empfehlung: Einfaches helles ✏️ oder Layersymbol auf #1a1f2e-Grund.
 -->
 <html lang="de">
 <head>
@@ -22,132 +27,171 @@
                  maximum-scale=1.0, user-scalable=no,
                  viewport-fit=cover" />
 
-  <!-- PWA-Metadaten: App kann zum Home-Bildschirm hinzugefügt werden -->
+  <!-- PWA / iOS Home-Screen -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="EduLayer" />
   <meta name="theme-color" content="#1a1f2e" />
 
   <title>EduLayer – PDF-Annotations-Layer</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css" />
 
-  <!-- ─── EXTERNE BIBLIOTHEKEN (stabile CDN-Versionen) ─────────────────── -->
+  <link rel="manifest"         href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon"             href="icons/favicon.ico" />
+  <link rel="stylesheet"       href="style.css" />
 
-  <!--
-    pdf.js von Mozilla – rendert PDF-Seiten auf HTML5-Canvas-Elemente.
-    Wir laden sowohl die Haupt-Bibliothek als auch den Web-Worker,
-    der die rechenintensive PDF-Verarbeitung im Hintergrund erledigt.
-    ACHTUNG: Worker-URL muss zur Library-Version passen!
-  -->
+  <!-- ─── EXTERNE BIBLIOTHEKEN ─────────────────────────────────────
+    pdf.js  – rendert PDF-Seiten auf HTML5-Canvas.
+    pdf-lib – schreibt Annotationen als native PDF-Objekte zurück.
+    ACHTUNG: Worker-URL in app.js muss zur pdf.js-Version passen.
+  ──────────────────────────────────────────────────────────────── -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
-  <!--
-    pdf-lib – ermöglicht das Einbetten von Zeichnungen als
-    native PDF-Annotationen beim Speichern. Kein serverseitiger
-    Prozess nötig – alles passiert im Browser.
-  -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 </head>
 
 <!--
-  data-sidebar: Steuert, auf welcher Seite die Sidebar erscheint.
-  Erlaubte Werte: "left" (Standard) oder "right"
-  Tipp: "right" ist für Rechtshänder beim iPad-Halten ergonomischer.
+  data-sidebar="right" → Sidebar rechts (Daumen-freundlich für Rechtshänder).
+  data-sidebar="left"  → Sidebar links.
+  Der Wechsel-Button in der Sidebar schaltet per JS um.
 -->
-<body data-sidebar="left">
+<body data-sidebar="right">
 
   <!-- ═══════════════════════════════════════════════════════════════
-       SIDEBAR – Werkzeugpalette (vertikal, 60px breit)
-       Alle Werkzeuge sind gruppiert. Reihenfolge = visuelle Hierarchie.
+       HAUPTBEREICH – PDF-Anzeige und Zeichen-Canvas
+  ════════════════════════════════════════════════════════════════ -->
+  <main id="hauptbereich" class="hauptbereich" role="main">
+
+    <!-- Leer-Zustand: sichtbar bevor eine PDF geladen wird -->
+    <div id="start-anzeige" class="start-anzeige">
+      <div class="start-anzeige__inhalt">
+        <div class="start-anzeige__icon">📄</div>
+        <h1 class="start-anzeige__titel">EduLayer</h1>
+        <p class="start-anzeige__text">
+          PDF laden und im Unterricht annotieren.<br>
+          Alle Daten bleiben lokal auf Ihrem Gerät.
+        </p>
+        <button class="start-anzeige__btn" id="btn-start-laden">
+          PDF öffnen
+        </button>
+      </div>
+    </div>
+
+    <!--
+      PDF-Container: Seiten werden per JS eingefügt.
+      Jede Seite = <div class="seite-container" data-seite="N">
+                     <canvas class="pdf-canvas">     ← pdf.js rendert hier
+                     <canvas class="zeichen-canvas">  ← Nutzer-Annotationen
+                     <canvas class="lehrer-canvas">   ← Lehrer-Layer
+                   </div>
+    -->
+    <div id="pdf-container" class="pdf-container" style="display:none">
+      <!-- Dynamisch befüllt durch app.js → pdfSeiteRendern() -->
+    </div>
+
+    <!-- Pinch-to-Zoom Wrapper (umschließt den pdf-container) -->
+    <!-- HINWEIS: Der pdf-container wird per JS in diesen Wrapper verschoben -->
+    <div id="zoom-wrapper" class="zoom-wrapper"></div>
+
+  </main>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       SIDEBAR – Werkzeugpalette (64px breit, standardmäßig rechts)
   ════════════════════════════════════════════════════════════════ -->
   <aside id="sidebar" class="sidebar" role="toolbar" aria-label="Werkzeuge">
 
-    <!-- App-Logo / Titel (mini) -->
+    <!-- Logo -->
     <div class="sidebar-logo" title="EduLayer">
       <span class="logo-icon">✏️</span>
     </div>
 
-    <!-- ── GRUPPE 1: Datei-Operationen ──────────────────────────── -->
+    <!-- ── GRUPPE 1: Datei ──────────────────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="datei">
 
-      <!--
-        Datei laden: Öffnet den nativen iOS/iPadOS-Dateiauswähler.
-        Das versteckte <input> wird per JS-Klick ausgelöst.
-      -->
-      <button
-        id="btn-datei-laden"
-        class="werkzeug-btn"
-        title="PDF laden"
-        aria-label="PDF-Datei öffnen">
+      <button id="btn-datei-laden" class="werkzeug-btn"
+              title="PDF laden" aria-label="PDF-Datei öffnen">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
           <line x1="12" y1="18" x2="12" y2="12"/>
-          <line x1="9" y1="15" x2="15" y2="15"/>
+          <line x1="9"  y1="15" x2="15" y2="15"/>
         </svg>
         <span class="btn-label">Laden</span>
       </button>
 
-      <!-- Verstecktes Datei-Input – wird per JS ausgelöst -->
-      <input
-        type="file"
-        id="datei-input"
-        accept="application/pdf"
-        style="display:none"
-        aria-hidden="true" />
+      <!-- Verstecktes File-Input – per JS-Klick ausgelöst -->
+      <input type="file" id="datei-input" accept="application/pdf"
+             style="display:none" aria-hidden="true" />
     </div>
 
-    <!-- ── GRUPPE 2: Zeichenwerkzeuge ───────────────────────────── -->
+    <!-- ── GRUPPE 2: Stift + Farben ────────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="stift">
 
-      <!-- Dünner Stift (2px Strichbreite) -->
-      <button
-        id="btn-stift-duenn"
-        class="werkzeug-btn aktiv"
-        data-werkzeug="stift-duenn"
-        title="Dünner Stift (2px)"
-        aria-label="Dünner Stift"
-        aria-pressed="true">
+      <!-- Dünner Stift -->
+      <button id="btn-stift-duenn" class="werkzeug-btn aktiv"
+              data-werkzeug="stift-duenn"
+              title="Dünner Stift (2 px)" aria-label="Dünner Stift"
+              aria-pressed="true">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
         </svg>
         <span class="btn-label">Fein</span>
       </button>
 
-      <!-- Dicker Stift (6px Strichbreite) -->
-      <button
-        id="btn-stift-dick"
-        class="werkzeug-btn"
-        data-werkzeug="stift-dick"
-        title="Dicker Stift (6px)"
-        aria-label="Dicker Stift"
-        aria-pressed="false">
+      <!-- Dicker Stift -->
+      <button id="btn-stift-dick" class="werkzeug-btn"
+              data-werkzeug="stift-dick"
+              title="Dicker Stift (6 px)" aria-label="Dicker Stift"
+              aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <!-- Dickerer Strich-Pfad durch stroke-width in CSS -->
           <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"
                 stroke-width="2.5"/>
         </svg>
         <span class="btn-label">Dick</span>
       </button>
 
-    
+      <!-- Farbpalette: 6 Dots (2×3 Grid) -->
+      <!--
+        ANPASSEN: data-farbe-Wert und style="background:…" pro Dot ändern.
+        Reihenfolge: Dunkelblau · Signalrot · Grün · Violett · Schwarz · Weiß
+      -->
+      <div class="farb-palette" role="radiogroup" aria-label="Farbe wählen">
+
+        <button class="farb-dot aktiv" data-farbe="#1a3a6b"
+                style="background:#1a3a6b" title="Dunkelblau"
+                aria-label="Dunkelblau" aria-pressed="true"></button>
+
+        <button class="farb-dot" data-farbe="#e02020"
+                style="background:#e02020" title="Signalrot"
+                aria-label="Signalrot" aria-pressed="false"></button>
+
+        <button class="farb-dot" data-farbe="#1e8a3c"
+                style="background:#1e8a3c" title="Grün"
+                aria-label="Grün" aria-pressed="false"></button>
+
+        <button class="farb-dot" data-farbe="#7b2d8b"
+                style="background:#7b2d8b" title="Violett"
+                aria-label="Violett" aria-pressed="false"></button>
+
+        <button class="farb-dot" data-farbe="#111111"
+                style="background:#111111" title="Schwarz"
+                aria-label="Schwarz" aria-pressed="false"></button>
+
+        <button class="farb-dot farb-dot--hell" data-farbe="#ffffff"
+                style="background:#ffffff" title="Weiß"
+                aria-label="Weiß" aria-pressed="false"></button>
+
+      </div>
+    </div>
 
     <!-- ── GRUPPE 3: Sonder-Werkzeuge ───────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="sonder">
 
-      <!--
-        Textmarker: Halbtransparentes Gelb/Orange.
-        Nutzt CSS mix-blend-mode: multiply für echten Marker-Effekt.
-        Strichbreite: 18px (in app.js konfigurierbar).
-      -->
-      <button
-        id="btn-textmarker"
-        class="werkzeug-btn"
-        data-werkzeug="textmarker"
-        title="Textmarker (gelb-orange)"
-        aria-label="Textmarker"
-        aria-pressed="false">
+      <!-- Textmarker: halbtransparentes Gelb, mix-blend-mode:multiply -->
+      <button id="btn-textmarker" class="werkzeug-btn"
+              data-werkzeug="textmarker"
+              title="Textmarker (gelb, halbtransparent)"
+              aria-label="Textmarker" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 20h9"/>
           <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
@@ -155,14 +199,11 @@
         <span class="btn-label">Marker</span>
       </button>
 
-      <!-- Radiergummi: Entfernt Striche durch Canvas-Composite-Operation -->
-      <button
-        id="btn-radierer"
-        class="werkzeug-btn"
-        data-werkzeug="radierer"
-        title="Radiergummi"
-        aria-label="Radiergummi"
-        aria-pressed="false">
+      <!-- Radiergummi: destination-out auf dem Canvas -->
+      <button id="btn-radierer" class="werkzeug-btn"
+              data-werkzeug="radierer"
+              title="Radiergummi" aria-label="Radiergummi"
+              aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/>
           <path d="M6.5 17.5l5-5"/>
@@ -171,74 +212,12 @@
       </button>
 
     </div>
-  <!-- ── Farbpalette: 6 Farb-Dots ─────────────────────────── -->
-      <!--
-        ANPASSEN: Die data-farbe-Attribute und die CSS-Hintergründe
-        in style.css unter ".farb-dot" können frei geändert werden.
-        Reihenfolge: Dunkelblau, Signalrot, Grün, Violett, Schwarz, Weiß
-      -->
-      <div class="farb-palette" role="radiogroup" aria-label="Farbe wählen">
 
-        <button class="farb-dot aktiv"
-                data-farbe="#1a3a6b"
-                style="background:#1a3a6b"
-                title="Dunkelblau"
-                aria-label="Dunkelblau"
-                aria-pressed="true">
-        </button>
-
-        <button class="farb-dot"
-                data-farbe="#e02020"
-                style="background:#e02020"
-                title="Signalrot"
-                aria-label="Signalrot"
-                aria-pressed="false">
-        </button>
-
-        <button class="farb-dot"
-                data-farbe="#1e8a3c"
-                style="background:#1e8a3c"
-                title="Grün"
-                aria-label="Grün"
-                aria-pressed="false">
-        </button>
-
-        <button class="farb-dot"
-                data-farbe="#7b2d8b"
-                style="background:#7b2d8b"
-                title="Violett"
-                aria-label="Violett"
-                aria-pressed="false">
-        </button>
-
-        <button class="farb-dot"
-                data-farbe="#111111"
-                style="background:#111111"
-                title="Schwarz"
-                aria-label="Schwarz"
-                aria-pressed="false">
-        </button>
-
-        <button class="farb-dot farb-dot--hell"
-                data-farbe="#ffffff"
-                style="background:#ffffff"
-                title="Weiß"
-                aria-label="Weiß"
-                aria-pressed="false">
-        </button>
-
-      </div>
-    </div>
-    
-    <!-- ── GRUPPE 4: Verlauf & Seite ────────────────────────────── -->
+    <!-- ── GRUPPE 4: Verlauf ─────────────────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="verlauf">
 
-      <!-- Rückgängig (Undo) -->
-      <button
-        id="btn-undo"
-        class="werkzeug-btn"
-        title="Rückgängig (Strg+Z)"
-        aria-label="Rückgängig">
+      <button id="btn-undo" class="werkzeug-btn"
+              title="Rückgängig" aria-label="Rückgängig">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <polyline points="1 4 1 10 7 10"/>
           <path d="M3.51 15a9 9 0 1 0 .49-3.48"/>
@@ -246,12 +225,8 @@
         <span class="btn-label">Zurück</span>
       </button>
 
-      <!-- Wiederherstellen (Redo) -->
-      <button
-        id="btn-redo"
-        class="werkzeug-btn"
-        title="Wiederherstellen (Strg+Y)"
-        aria-label="Wiederherstellen">
+      <button id="btn-redo" class="werkzeug-btn"
+              title="Wiederholen" aria-label="Wiederholen">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <polyline points="23 4 23 10 17 10"/>
           <path d="M20.49 15a9 9 0 1 1-.49-3.48"/>
@@ -259,12 +234,8 @@
         <span class="btn-label">Wieder</span>
       </button>
 
-      <!-- Seite leeren (nur Annotationen der aktuellen Seite) -->
-      <button
-        id="btn-seite-leeren"
-        class="werkzeug-btn werkzeug-btn--gefahr"
-        title="Seite leeren (alle Annotationen dieser Seite)"
-        aria-label="Seite leeren">
+      <button id="btn-seite-leeren" class="werkzeug-btn werkzeug-btn--gefahr"
+              title="Seite leeren" aria-label="Seite leeren">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <polyline points="3 6 5 6 21 6"/>
           <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
@@ -276,21 +247,17 @@
 
     </div>
 
-    <!-- ── GRUPPE 5: Spezial-Modi ────────────────────────────────── -->
+    <!-- ── GRUPPE 5: Modi ────────────────────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="modi">
 
       <!--
-        Laserpointer: Striche werden nach 2000ms automatisch gelöscht.
-        Der Wert 2000 kann in app.js unter KONFIGURATION > LASER_TIMEOUT_MS
-        geändert werden.
+        Laserpointer: Striche verschwinden nach LASER_TIMEOUT_MS.
+        Wert in app.js → KONFIGURATION.LASER_TIMEOUT_MS anpassen.
       -->
-      <button
-        id="btn-laser"
-        class="werkzeug-btn"
-        data-werkzeug="laser"
-        title="Laserpointer (Striche verschwinden nach 2 Sek.)"
-        aria-label="Laserpointer"
-        aria-pressed="false">
+      <button id="btn-laser" class="werkzeug-btn"
+              data-werkzeug="laser"
+              title="Laserpointer (Striche verschwinden nach 2 Sek.)"
+              aria-label="Laserpointer" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="3" fill="currentColor"/>
           <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
@@ -300,17 +267,10 @@
         <span class="btn-label">Laser</span>
       </button>
 
-      <!--
-        Spotlight: Blendet alles außer einem wählbaren Bereich ab.
-        Umschalten zwischen Rechteck und Kreis per Lange-Drücken oder
-        Klick auf das Spotlight-Symbol wenn bereits aktiv.
-      -->
-      <button
-        id="btn-spotlight"
-        class="werkzeug-btn"
-        title="Spotlight (Fokus-Overlay)"
-        aria-label="Spotlight"
-        aria-pressed="false">
+      <!-- Spotlight: Fokus-Overlay mit beweglichem Ausschnitt -->
+      <button id="btn-spotlight" class="werkzeug-btn"
+              title="Spotlight (Fokus-Bereich)" aria-label="Spotlight"
+              aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="5"/>
           <path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12"/>
@@ -321,23 +281,16 @@
       </button>
 
       <!--
-        Lehrer-Layer: Zweiter, unsichtbarer Annotations-Layer.
-        Wenn aktiv (Auge offen): Lehrer-Annotationen werden sichtbar.
-        Wenn inaktiv (Auge geschlossen): Annotationen bleiben im Speicher,
-        aber werden nicht auf dem Canvas angezeigt.
+        Lehrer-Layer: Zweiter Annotations-Layer.
+        Auge offen → Layer sichtbar. Auge zu → Layer unsichtbar (aber gespeichert).
       -->
-      <button
-        id="btn-lehrer-layer"
-        class="werkzeug-btn"
-        title="Lehrer-Layer (versteckte Annotationen)"
-        aria-label="Lehrer-Layer"
-        aria-pressed="false">
-        <!-- Auge-offen Icon (Standard) -->
+      <button id="btn-lehrer-layer" class="werkzeug-btn"
+              title="Lehrer-Layer" aria-label="Lehrer-Layer"
+              aria-pressed="false">
         <svg id="icon-auge-auf" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
           <circle cx="12" cy="12" r="3"/>
         </svg>
-        <!-- Auge-zu Icon (wenn Layer versteckt) -->
         <svg id="icon-auge-zu" viewBox="0 0 24 24" aria-hidden="true"
              style="display:none">
           <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8
@@ -354,12 +307,9 @@
     <!-- ── GRUPPE 6: Export ──────────────────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="export">
 
-      <!-- PDF mit Annotationen speichern / herunterladen -->
-      <button
-        id="btn-speichern"
-        class="werkzeug-btn werkzeug-btn--primary"
-        title="PDF speichern (mit Annotationen)"
-        aria-label="PDF speichern">
+      <button id="btn-speichern" class="werkzeug-btn werkzeug-btn--primary"
+              title="PDF speichern (mit Annotationen)"
+              aria-label="PDF speichern">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
           <polyline points="17 21 17 13 7 13 7 21"/>
@@ -370,17 +320,11 @@
 
     </div>
 
-    <!-- ── SIDEBAR-WECHSEL (Links/Rechts) ────────────────────────── -->
-    <!--
-      Dieser Button wechselt die Sidebar von links nach rechts und zurück.
-      Nützlich je nachdem, mit welcher Hand man das iPad hält.
-    -->
+    <!-- ── Sidebar-Wechsel (ganz unten) ─────────────────────────── -->
     <div class="werkzeug-gruppe werkzeug-gruppe--unten">
-      <button
-        id="btn-sidebar-wechsel"
-        class="werkzeug-btn werkzeug-btn--sekundaer"
-        title="Sidebar wechseln (Links/Rechts)"
-        aria-label="Sidebar-Position wechseln">
+      <button id="btn-sidebar-wechsel" class="werkzeug-btn werkzeug-btn--sekundaer"
+              title="Sidebar links/rechts wechseln"
+              aria-label="Sidebar-Position wechseln">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M17 1l4 4-4 4M7 23l-4-4 4-4"/>
           <path d="M3 11V9a4 4 0 0 1 4-4h14M21 13v2a4 4 0 0 1-4 4H3"/>
@@ -390,126 +334,53 @@
     </div>
 
   </aside>
-  <!-- Ende Sidebar -->
-
-
-  <!-- ═══════════════════════════════════════════════════════════════
-       HAUPTBEREICH – PDF-Anzeige und Zeichen-Canvas
-  ════════════════════════════════════════════════════════════════ -->
-  <main id="hauptbereich" class="hauptbereich" role="main">
-
-    <!-- Leer-Zustand: Wird angezeigt bevor eine PDF geladen wird -->
-    <div id="start-anzeige" class="start-anzeige">
-      <div class="start-anzeige__inhalt">
-        <div class="start-anzeige__icon">📄</div>
-        <h1 class="start-anzeige__titel">EduLayer</h1>
-        <p class="start-anzeige__text">
-          PDF laden und im Unterricht annotieren.
-        </p>
-        <button class="start-anzeige__btn" id="btn-start-laden">
-          PDF öffnen
-        </button>
-        <p class="start-anzeige__hinweis">
-          Alle Daten bleiben lokal auf Ihrem Gerät.
-        </p>
-      </div>
-    </div>
-
-    <!--
-      PDF-Container: Hier werden die einzelnen Seiten-Paare (PDF-Canvas +
-      Zeichen-Canvas) dynamisch von app.js eingefügt.
-      Jede Seite besteht aus:
-        <div class="seite-container" data-seite="1">
-          <canvas class="pdf-canvas">   <!-- PDF-Rendering durch pdf.js -->
-          <canvas class="zeichen-canvas"> <!-- Nutzer-Annotationen -->
-        </div>
-    -->
-    <div id="pdf-container" class="pdf-container" style="display:none">
-      <!-- Seiten werden dynamisch per JavaScript eingefügt -->
-    </div>
-
-  </main>
-  <!-- Ende Hauptbereich -->
 
 
   <!-- ═══════════════════════════════════════════════════════════════
        SPOTLIGHT-OVERLAY
-       Dunkle Fläche mit ausgestanztem Fokusbereich.
-       Wird per JS positioniert und per CSS-Clip-Path ausgeschnitten.
   ════════════════════════════════════════════════════════════════ -->
-  <div
-    id="spotlight-overlay"
-    class="spotlight-overlay"
-    style="display:none"
-    aria-hidden="true">
+  <div id="spotlight-overlay" class="spotlight-overlay"
+       style="display:none" aria-hidden="true">
 
-    <!--
-      Die vier dunklen Ränder um den Fokusbereich.
-      Technik: 4 absolute Divs bilden den Rahmen um den hellen Ausschnitt.
-      Alternativ: clip-path mit SVG-Mask für Oval-Form.
-    -->
     <div id="spotlight-maske" class="spotlight-maske"></div>
 
-    <!-- Fokusbereich: Dieser Bereich ist "hell" / transparent -->
-    <div
-      id="spotlight-fenster"
-      class="spotlight-fenster"
-      role="region"
-      aria-label="Fokusbereich">
-    </div>
+    <div id="spotlight-fenster" class="spotlight-fenster"
+         role="region" aria-label="Fokusbereich"></div>
 
-    <!-- Mini-Toolbar oben im Spotlight -->
     <div id="spotlight-toolbar" class="spotlight-toolbar">
-      <button id="btn-spotlight-rechteck"
-              class="spotlight-form-btn aktiv"
-              title="Rechteckiger Fokus"
-              aria-label="Rechteck"
-              aria-pressed="true">▭</button>
-      <button id="btn-spotlight-oval"
-              class="spotlight-form-btn"
-              title="Ovaler Fokus"
-              aria-label="Oval"
-              aria-pressed="false">◯</button>
-      <button id="btn-spotlight-schliessen"
-              class="spotlight-form-btn"
-              title="Spotlight schließen"
-              aria-label="Schließen">✕</button>
+      <button id="btn-spotlight-rechteck" class="spotlight-form-btn aktiv"
+              title="Rechteck" aria-label="Rechteck" aria-pressed="true">▭</button>
+      <button id="btn-spotlight-oval" class="spotlight-form-btn"
+              title="Oval" aria-label="Oval" aria-pressed="false">◯</button>
+      <button id="btn-spotlight-schliessen" class="spotlight-form-btn"
+              title="Schließen" aria-label="Spotlight schließen">✕</button>
     </div>
 
   </div>
-  <!-- Ende Spotlight-Overlay -->
 
 
   <!-- ═══════════════════════════════════════════════════════════════
-       STATUS-LEISTE (Toast-Meldungen)
-       Zeigt kurze Hinweise wie "PDF geladen", "Gespeichert" etc.
+       ZOOM-STEUERUNG (erscheint wenn PDF geladen)
   ════════════════════════════════════════════════════════════════ -->
-  <div
-    id="toast"
-    class="toast"
-    role="status"
-    aria-live="polite"
-    aria-atomic="true">
+  <div id="zoom-steuerung" class="zoom-steuerung" style="display:none"
+       aria-label="Zoom-Steuerung">
+    <button id="btn-zoom-minus" class="zoom-btn" title="Verkleinern" aria-label="Verkleinern">−</button>
+    <span   id="zoom-anzeige"  class="zoom-anzeige">100%</span>
+    <button id="btn-zoom-plus"  class="zoom-btn" title="Vergrößern"  aria-label="Vergrößern">+</button>
+    <button id="btn-zoom-reset" class="zoom-btn zoom-btn--reset" title="Zurücksetzen" aria-label="Zoom zurücksetzen">↺</button>
   </div>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════
-       LADE-INDIKATOR
-       Wird während des PDF-Renderings angezeigt.
-  ════════════════════════════════════════════════════════════════ -->
-  <div
-    id="lade-overlay"
-    class="lade-overlay"
-    style="display:none"
-    aria-hidden="true">
+  <!-- Toast-Meldungen -->
+  <div id="toast" class="toast" role="status"
+       aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Lade-Indikator -->
+  <div id="lade-overlay" class="lade-overlay" style="display:none" aria-hidden="true">
     <div class="lade-spinner"></div>
     <p id="lade-text" class="lade-text">PDF wird geladen…</p>
   </div>
 
-
-  <!-- ═══════════════════════════════════════════════════════════════
-       JAVASCRIPT-EINSTIEGSPUNKT
-  ════════════════════════════════════════════════════════════════ -->
   <script src="app.js"></script>
 
 </body>
