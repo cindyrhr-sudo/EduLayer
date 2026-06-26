@@ -1,67 +1,52 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════════╗
-  ║  EduLayer – Echtzeit-Annotations-PWA für den Unterricht         ║
-  ║  Datei: index.html  (Version 2)                                 ║
+  ║  EduLayer – Echtzeit-Annotations-PWA  (Version 3)               ║
+  ║  Datei: index.html                                              ║
   ╚══════════════════════════════════════════════════════════════════╝
 
-  ANPASSEN:
-  - Sidebar-Seite: data-sidebar="right" oder "left" am <body>-Tag.
-  - App-Name:      <title> und .app-titel ändern.
-  - Icons:         Dateien in icons/ ablegen (Namen siehe unten).
-
-  BENÖTIGTE ICON-DATEIEN (selbst erstellen, in /icons/ ablegen):
-    icons/icon-192.png   – App-Icon 192×192 px  (für Android / PWA)
-    icons/icon-512.png   – App-Icon 512×512 px  (für Splash-Screen)
-    icons/apple-touch-icon.png – 180×180 px     (für iOS Home-Screen)
-    icons/favicon.ico    – 32×32 px             (Browser-Tab)
-  Empfehlung: Einfaches helles ✏️ oder Layersymbol auf #1a1f2e-Grund.
+  BENÖTIGTE ICON-DATEIEN (selbst erstellen, Ordner: /icons/):
+    icons/icon-192.png          192 × 192 px   PWA / Android
+    icons/icon-512.png          512 × 512 px   Splash-Screen
+    icons/apple-touch-icon.png  180 × 180 px   iOS Home-Screen
+    icons/favicon.ico            32 × 32  px   Browser-Tab
 -->
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-
-  <!-- Verhindert natives iOS-Zoomen und Seitenspringen -->
   <meta name="viewport"
         content="width=device-width, initial-scale=1.0,
                  maximum-scale=1.0, user-scalable=no,
                  viewport-fit=cover" />
-
-  <!-- PWA / iOS Home-Screen -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="EduLayer" />
   <meta name="theme-color" content="#1a1f2e" />
 
   <title>EduLayer – PDF-Annotations-Layer</title>
-
   <link rel="manifest"         href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon"             href="icons/favicon.ico" />
   <link rel="stylesheet"       href="style.css" />
 
-  <!-- ─── EXTERNE BIBLIOTHEKEN ─────────────────────────────────────
-    pdf.js  – rendert PDF-Seiten auf HTML5-Canvas.
-    pdf-lib – schreibt Annotationen als native PDF-Objekte zurück.
-    ACHTUNG: Worker-URL in app.js muss zur pdf.js-Version passen.
-  ──────────────────────────────────────────────────────────────── -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 </head>
 
+<body data-sidebar="right" data-modus="zeichnen">
 <!--
-  data-sidebar="right" → Sidebar rechts (Daumen-freundlich für Rechtshänder).
-  data-sidebar="left"  → Sidebar links.
-  Der Wechsel-Button in der Sidebar schaltet per JS um.
+  data-sidebar:  "right" oder "left"
+  data-modus:    "zeichnen" (Apple Pencil zeichnet)
+               | "scrollen" (Finger scrollt das PDF)
+  Der Modus-Button in der Sidebar schaltet zwischen beiden um.
 -->
-<body data-sidebar="right">
 
   <!-- ═══════════════════════════════════════════════════════════════
-       HAUPTBEREICH – PDF-Anzeige und Zeichen-Canvas
+       HAUPTBEREICH
   ════════════════════════════════════════════════════════════════ -->
   <main id="hauptbereich" class="hauptbereich" role="main">
 
-    <!-- Leer-Zustand: sichtbar bevor eine PDF geladen wird -->
+    <!-- Leer-Zustand -->
     <div id="start-anzeige" class="start-anzeige">
       <div class="start-anzeige__inhalt">
         <div class="start-anzeige__icon">📄</div>
@@ -70,44 +55,34 @@
           PDF laden und im Unterricht annotieren.<br>
           Alle Daten bleiben lokal auf Ihrem Gerät.
         </p>
-        <button class="start-anzeige__btn" id="btn-start-laden">
-          PDF öffnen
-        </button>
+        <button class="start-anzeige__btn" id="btn-start-laden">PDF öffnen</button>
       </div>
     </div>
 
     <!--
-      PDF-Container: Seiten werden per JS eingefügt.
-      Jede Seite = <div class="seite-container" data-seite="N">
-                     <canvas class="pdf-canvas">     ← pdf.js rendert hier
-                     <canvas class="zeichen-canvas">  ← Nutzer-Annotationen
-                     <canvas class="lehrer-canvas">   ← Lehrer-Layer
-                   </div>
+      Zoom-Wrapper: scrollbarer Bereich für den PDF-Inhalt.
+      Scrollen per Finger nur aktiv wenn data-modus="scrollen".
     -->
-    <div id="pdf-container" class="pdf-container" style="display:none">
-      <!-- Dynamisch befüllt durch app.js → pdfSeiteRendern() -->
+    <div id="zoom-wrapper" class="zoom-wrapper">
+      <div id="pdf-container" class="pdf-container" style="display:none">
+        <!-- Seiten werden per JS eingefügt -->
+      </div>
     </div>
-
-    <!-- Pinch-to-Zoom Wrapper (umschließt den pdf-container) -->
-    <!-- HINWEIS: Der pdf-container wird per JS in diesen Wrapper verschoben -->
-    <div id="zoom-wrapper" class="zoom-wrapper"></div>
 
   </main>
 
 
   <!-- ═══════════════════════════════════════════════════════════════
-       SIDEBAR – Werkzeugpalette (64px breit, standardmäßig rechts)
+       SIDEBAR (standardmäßig rechts)
   ════════════════════════════════════════════════════════════════ -->
   <aside id="sidebar" class="sidebar" role="toolbar" aria-label="Werkzeuge">
 
-    <!-- Logo -->
     <div class="sidebar-logo" title="EduLayer">
       <span class="logo-icon">✏️</span>
     </div>
 
     <!-- ── GRUPPE 1: Datei ──────────────────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="datei">
-
       <button id="btn-datei-laden" class="werkzeug-btn"
               title="PDF laden" aria-label="PDF-Datei öffnen">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -118,16 +93,40 @@
         </svg>
         <span class="btn-label">Laden</span>
       </button>
-
-      <!-- Verstecktes File-Input – per JS-Klick ausgelöst -->
       <input type="file" id="datei-input" accept="application/pdf"
              style="display:none" aria-hidden="true" />
     </div>
 
-    <!-- ── GRUPPE 2: Stift + Farben ────────────────────────────── -->
+    <!-- ── GRUPPE 2: Scroll-Modus ───────────────────────────────── -->
+    <!--
+      Schaltet zwischen Zeichnen und Scrollen um.
+      Im Scroll-Modus kann man mit dem Finger das PDF verschieben.
+      Im Zeichen-Modus zeichnet jede Berührung auf dem Canvas.
+    -->
+    <div class="werkzeug-gruppe" data-gruppe="modus">
+      <button id="btn-modus-wechsel" class="werkzeug-btn"
+              title="Scroll-Modus umschalten (Zeichnen ↔ Scrollen)"
+              aria-label="Scroll-Modus" aria-pressed="false">
+        <!-- Hand-Symbol (Scroll-Modus inaktiv = Stift-Modus) -->
+        <svg id="icon-stift-modus" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+        </svg>
+        <!-- Finger-Symbol (Scroll-Modus aktiv) -->
+        <svg id="icon-scroll-modus" viewBox="0 0 24 24" aria-hidden="true"
+             style="display:none">
+          <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
+          <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
+          <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
+          <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34
+                   l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+        </svg>
+        <span class="btn-label">Scroll</span>
+      </button>
+    </div>
+
+    <!-- ── GRUPPE 3: Stift + Farben ────────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="stift">
 
-      <!-- Dünner Stift -->
       <button id="btn-stift-duenn" class="werkzeug-btn aktiv"
               data-werkzeug="stift-duenn"
               title="Dünner Stift (2 px)" aria-label="Dünner Stift"
@@ -138,7 +137,6 @@
         <span class="btn-label">Fein</span>
       </button>
 
-      <!-- Dicker Stift -->
       <button id="btn-stift-dick" class="werkzeug-btn"
               data-werkzeug="stift-dick"
               title="Dicker Stift (6 px)" aria-label="Dicker Stift"
@@ -150,10 +148,15 @@
         <span class="btn-label">Dick</span>
       </button>
 
-      <!-- Farbpalette: 6 Dots (2×3 Grid) -->
       <!--
-        ANPASSEN: data-farbe-Wert und style="background:…" pro Dot ändern.
-        Reihenfolge: Dunkelblau · Signalrot · Grün · Violett · Schwarz · Weiß
+        FARBPALETTE – 8 Farben in einem 2×4-Grid
+        ANPASSEN: data-farbe und style="background:…" pro Dot ändern.
+
+        Reihenfolge:
+          Zeile 1: Dunkelblau  · Signalrot
+          Zeile 2: Grün        · Violett
+          Zeile 3: Schwarz     · Weiß
+          Zeile 4: Orange      · Türkis   ← NEU
       -->
       <div class="farb-palette" role="radiogroup" aria-label="Farbe wählen">
 
@@ -181,13 +184,22 @@
                 style="background:#ffffff" title="Weiß"
                 aria-label="Weiß" aria-pressed="false"></button>
 
+        <!-- NEU: Orange -->
+        <button class="farb-dot" data-farbe="#e86a10"
+                style="background:#e86a10" title="Orange"
+                aria-label="Orange" aria-pressed="false"></button>
+
+        <!-- NEU: Türkis -->
+        <button class="farb-dot" data-farbe="#0097a7"
+                style="background:#0097a7" title="Türkis"
+                aria-label="Türkis" aria-pressed="false"></button>
+
       </div>
     </div>
 
-    <!-- ── GRUPPE 3: Sonder-Werkzeuge ───────────────────────────── -->
+    <!-- ── GRUPPE 4: Sonder-Werkzeuge ───────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="sonder">
 
-      <!-- Textmarker: halbtransparentes Gelb, mix-blend-mode:multiply -->
       <button id="btn-textmarker" class="werkzeug-btn"
               data-werkzeug="textmarker"
               title="Textmarker (gelb, halbtransparent)"
@@ -199,7 +211,6 @@
         <span class="btn-label">Marker</span>
       </button>
 
-      <!-- Radiergummi: destination-out auf dem Canvas -->
       <button id="btn-radierer" class="werkzeug-btn"
               data-werkzeug="radierer"
               title="Radiergummi" aria-label="Radiergummi"
@@ -213,7 +224,7 @@
 
     </div>
 
-    <!-- ── GRUPPE 4: Verlauf ─────────────────────────────────────── -->
+    <!-- ── GRUPPE 5: Verlauf ─────────────────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="verlauf">
 
       <button id="btn-undo" class="werkzeug-btn"
@@ -247,13 +258,9 @@
 
     </div>
 
-    <!-- ── GRUPPE 5: Modi ────────────────────────────────────────── -->
+    <!-- ── GRUPPE 6: Modi ────────────────────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="modi">
 
-      <!--
-        Laserpointer: Striche verschwinden nach LASER_TIMEOUT_MS.
-        Wert in app.js → KONFIGURATION.LASER_TIMEOUT_MS anpassen.
-      -->
       <button id="btn-laser" class="werkzeug-btn"
               data-werkzeug="laser"
               title="Laserpointer (Striche verschwinden nach 2 Sek.)"
@@ -267,9 +274,8 @@
         <span class="btn-label">Laser</span>
       </button>
 
-      <!-- Spotlight: Fokus-Overlay mit beweglichem Ausschnitt -->
       <button id="btn-spotlight" class="werkzeug-btn"
-              title="Spotlight (Fokus-Bereich)" aria-label="Spotlight"
+              title="Spotlight" aria-label="Spotlight"
               aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="5"/>
@@ -280,10 +286,6 @@
         <span class="btn-label">Spot</span>
       </button>
 
-      <!--
-        Lehrer-Layer: Zweiter Annotations-Layer.
-        Auge offen → Layer sichtbar. Auge zu → Layer unsichtbar (aber gespeichert).
-      -->
       <button id="btn-lehrer-layer" class="werkzeug-btn"
               title="Lehrer-Layer" aria-label="Lehrer-Layer"
               aria-pressed="false">
@@ -304,12 +306,10 @@
 
     </div>
 
-    <!-- ── GRUPPE 6: Export ──────────────────────────────────────── -->
+    <!-- ── GRUPPE 7: Export ──────────────────────────────────────── -->
     <div class="werkzeug-gruppe" data-gruppe="export">
-
       <button id="btn-speichern" class="werkzeug-btn werkzeug-btn--primary"
-              title="PDF speichern (mit Annotationen)"
-              aria-label="PDF speichern">
+              title="PDF speichern" aria-label="PDF speichern">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
           <polyline points="17 21 17 13 7 13 7 21"/>
@@ -317,14 +317,12 @@
         </svg>
         <span class="btn-label">Speichern</span>
       </button>
-
     </div>
 
-    <!-- ── Sidebar-Wechsel (ganz unten) ─────────────────────────── -->
+    <!-- ── Sidebar-Wechsel ───────────────────────────────────────── -->
     <div class="werkzeug-gruppe werkzeug-gruppe--unten">
       <button id="btn-sidebar-wechsel" class="werkzeug-btn werkzeug-btn--sekundaer"
-              title="Sidebar links/rechts wechseln"
-              aria-label="Sidebar-Position wechseln">
+              title="Sidebar links/rechts" aria-label="Sidebar-Position wechseln">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M17 1l4 4-4 4M7 23l-4-4 4-4"/>
           <path d="M3 11V9a4 4 0 0 1 4-4h14M21 13v2a4 4 0 0 1-4 4H3"/>
@@ -338,50 +336,66 @@
 
   <!-- ═══════════════════════════════════════════════════════════════
        SPOTLIGHT-OVERLAY
+       Zugpunkte: 4 Ecken + 4 Kanten = 8 Griffe
   ════════════════════════════════════════════════════════════════ -->
   <div id="spotlight-overlay" class="spotlight-overlay"
        style="display:none" aria-hidden="true">
 
+    <!-- Dunkle Maske mit Loch -->
     <div id="spotlight-maske" class="spotlight-maske"></div>
 
+    <!-- Helles Fokus-Fenster -->
     <div id="spotlight-fenster" class="spotlight-fenster"
-         role="region" aria-label="Fokusbereich"></div>
+         role="region" aria-label="Fokusbereich">
 
+      <!--
+        Zugpunkte an den 4 Ecken und 4 Kanten-Mitten.
+        data-griff: Position des Griffes
+          "no" = Norden-Osten (oben-rechts), "so" = Süden-Osten usw.
+          "n"  = Norden (oben-Mitte), "s" = Süden usw.
+        Der Wert steuert in JS welche Kanten beim Ziehen skaliert werden.
+      -->
+      <div class="spot-griff" data-griff="nw" title="Ecke oben-links"></div>
+      <div class="spot-griff" data-griff="n"  title="Kante oben"></div>
+      <div class="spot-griff" data-griff="ne" title="Ecke oben-rechts"></div>
+      <div class="spot-griff" data-griff="e"  title="Kante rechts"></div>
+      <div class="spot-griff" data-griff="se" title="Ecke unten-rechts"></div>
+      <div class="spot-griff" data-griff="s"  title="Kante unten"></div>
+      <div class="spot-griff" data-griff="sw" title="Ecke unten-links"></div>
+      <div class="spot-griff" data-griff="w"  title="Kante links"></div>
+
+    </div>
+
+    <!-- Mini-Toolbar -->
     <div id="spotlight-toolbar" class="spotlight-toolbar">
       <button id="btn-spotlight-rechteck" class="spotlight-form-btn aktiv"
               title="Rechteck" aria-label="Rechteck" aria-pressed="true">▭</button>
       <button id="btn-spotlight-oval" class="spotlight-form-btn"
               title="Oval" aria-label="Oval" aria-pressed="false">◯</button>
       <button id="btn-spotlight-schliessen" class="spotlight-form-btn"
-              title="Schließen" aria-label="Spotlight schließen">✕</button>
+              title="Schließen" aria-label="Schließen">✕</button>
     </div>
 
   </div>
 
 
   <!-- ═══════════════════════════════════════════════════════════════
-       ZOOM-STEUERUNG (erscheint wenn PDF geladen)
+       ZOOM-STEUERUNG
   ════════════════════════════════════════════════════════════════ -->
-  <div id="zoom-steuerung" class="zoom-steuerung" style="display:none"
-       aria-label="Zoom-Steuerung">
-    <button id="btn-zoom-minus" class="zoom-btn" title="Verkleinern" aria-label="Verkleinern">−</button>
+  <div id="zoom-steuerung" class="zoom-steuerung" style="display:none">
+    <button id="btn-zoom-minus" class="zoom-btn" title="Verkleinern">−</button>
     <span   id="zoom-anzeige"  class="zoom-anzeige">100%</span>
-    <button id="btn-zoom-plus"  class="zoom-btn" title="Vergrößern"  aria-label="Vergrößern">+</button>
-    <button id="btn-zoom-reset" class="zoom-btn zoom-btn--reset" title="Zurücksetzen" aria-label="Zoom zurücksetzen">↺</button>
+    <button id="btn-zoom-plus"  class="zoom-btn" title="Vergrößern">+</button>
+    <button id="btn-zoom-reset" class="zoom-btn zoom-btn--reset" title="Zurücksetzen">↺</button>
   </div>
 
-
-  <!-- Toast-Meldungen -->
-  <div id="toast" class="toast" role="status"
-       aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Lade-Indikator -->
+  <!-- Toast + Lade-Overlay -->
+  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
   <div id="lade-overlay" class="lade-overlay" style="display:none" aria-hidden="true">
     <div class="lade-spinner"></div>
     <p id="lade-text" class="lade-text">PDF wird geladen…</p>
   </div>
 
   <script src="app.js"></script>
-
 </body>
 </html>
