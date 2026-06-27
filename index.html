@@ -1,95 +1,77 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════════╗
-  ║  EduLayer – Echtzeit-Annotations-PWA  (Version 3)               ║
+  ║  EduLayer – Echtzeit-Annotations-PWA  (Version 4)               ║
   ║  Datei: index.html                                              ║
   ╚══════════════════════════════════════════════════════════════════╝
 
-  BENÖTIGTE ICON-DATEIEN (selbst erstellen, Ordner: /icons/):
-    icons/icon-192.png          192 × 192 px   PWA / Android
-    icons/icon-512.png          512 × 512 px   Splash-Screen
-    icons/apple-touch-icon.png  180 × 180 px   iOS Home-Screen
-    icons/favicon.ico            32 × 32  px   Browser-Tab
+  ICON-DATEIEN (selbst erstellen, Ordner /icons/):
+    icons/icon-192.png          192×192 px  PWA/Android
+    icons/icon-512.png          512×512 px  Splash
+    icons/apple-touch-icon.png  180×180 px  iOS Home-Screen
+    icons/favicon.ico            32×32  px  Browser-Tab
 -->
-<html lang="de">
+<html lang="de" data-thema="dunkel">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0,
-                 maximum-scale=1.0, user-scalable=no,
-                 viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0,
+        maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="EduLayer" />
   <meta name="theme-color" content="#1a1f2e" />
-
   <title>EduLayer – PDF-Annotations-Layer</title>
   <link rel="manifest"         href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon"             href="icons/favicon.ico" />
   <link rel="stylesheet"       href="style.css" />
-
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 </head>
 
 <body data-sidebar="right" data-modus="zeichnen">
-<!--
-  data-sidebar:  "right" oder "left"
-  data-modus:    "zeichnen" (Apple Pencil zeichnet)
-               | "scrollen" (Finger scrollt das PDF)
-  Der Modus-Button in der Sidebar schaltet zwischen beiden um.
--->
 
-  <!-- ═══════════════════════════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════════════════════
        HAUPTBEREICH
-  ════════════════════════════════════════════════════════════════ -->
+  ══════════════════════════════════════════════════════════════ -->
   <main id="hauptbereich" class="hauptbereich" role="main">
 
-    <!-- Leer-Zustand -->
     <div id="start-anzeige" class="start-anzeige">
       <div class="start-anzeige__inhalt">
         <div class="start-anzeige__icon">📄</div>
         <h1 class="start-anzeige__titel">EduLayer</h1>
         <p class="start-anzeige__text">
           PDF laden und im Unterricht annotieren.<br>
-          Alle Daten bleiben lokal auf Ihrem Gerät.
+          Alle Daten bleiben lokal auf dem Gerät.
         </p>
         <button class="start-anzeige__btn" id="btn-start-laden">PDF öffnen</button>
       </div>
     </div>
 
-    <!--
-      Zoom-Wrapper: scrollbarer Bereich für den PDF-Inhalt.
-      Scrollen per Finger nur aktiv wenn data-modus="scrollen".
-    -->
     <div id="zoom-wrapper" class="zoom-wrapper">
-      <div id="pdf-container" class="pdf-container" style="display:none">
-        <!-- Seiten werden per JS eingefügt -->
-      </div>
+      <div id="pdf-container" class="pdf-container" style="display:none"></div>
     </div>
 
   </main>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════
-       SIDEBAR (standardmäßig rechts)
-  ════════════════════════════════════════════════════════════════ -->
+  <!-- ═══════════════════════════════════════════════════════════
+       SIDEBAR  (standardmäßig rechts)
+  ══════════════════════════════════════════════════════════════ -->
   <aside id="sidebar" class="sidebar" role="toolbar" aria-label="Werkzeuge">
 
+    <!-- Logo -->
     <div class="sidebar-logo" title="EduLayer">
       <span class="logo-icon">✏️</span>
     </div>
 
-    <!-- ── GRUPPE 1: Datei ──────────────────────────────────────── -->
-    <div class="werkzeug-gruppe" data-gruppe="datei">
+    <!-- ── GRUPPE 1: Datei laden ───────────────────────────────── -->
+    <div class="werkzeug-gruppe">
       <button id="btn-datei-laden" class="werkzeug-btn"
-              title="PDF laden" aria-label="PDF-Datei öffnen">
+              title="PDF laden" aria-label="PDF laden">
+        <!-- Ordner-öffnen Icon -->
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="12" y1="18" x2="12" y2="12"/>
-          <line x1="9"  y1="15" x2="15" y2="15"/>
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
         <span class="btn-label">Laden</span>
       </button>
@@ -97,120 +79,72 @@
              style="display:none" aria-hidden="true" />
     </div>
 
-    <!-- ── GRUPPE 2: Scroll-Modus ───────────────────────────────── -->
+    <!-- ── GRUPPE 2: Scroll-Modus ──────────────────────────────── -->
     <!--
-      Schaltet zwischen Zeichnen und Scrollen um.
-      Im Scroll-Modus kann man mit dem Finger das PDF verschieben.
-      Im Zeichen-Modus zeichnet jede Berührung auf dem Canvas.
+      Scroll-Modus: Finger scrollt das PDF, kein Zeichnen.
+      Zeichen-Modus: Pencil zeichnet, Finger scrollt nicht.
+      Icon wechselt je nach aktivem Modus.
     -->
-    <div class="werkzeug-gruppe" data-gruppe="modus">
+    <div class="werkzeug-gruppe">
       <button id="btn-modus-wechsel" class="werkzeug-btn"
-              title="Scroll-Modus umschalten (Zeichnen ↔ Scrollen)"
-              aria-label="Scroll-Modus" aria-pressed="false">
-        <!-- Hand-Symbol (Scroll-Modus inaktiv = Stift-Modus) -->
-        <svg id="icon-stift-modus" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
-        </svg>
-        <!-- Finger-Symbol (Scroll-Modus aktiv) -->
-        <svg id="icon-scroll-modus" viewBox="0 0 24 24" aria-hidden="true"
-             style="display:none">
-          <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
-          <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
-          <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
-          <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34
-                   l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+              title="Scroll-Modus umschalten" aria-label="Scroll-Modus"
+              aria-pressed="false">
+        <!-- Hand/Scroll-Icon (immer sichtbar, Farbe wechselt per CSS) -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <!-- Stilisierte Hand mit ausgestrecktem Zeigefinger -->
+          <path d="M9 11V6a2 2 0 0 1 4 0v5"/>
+          <path d="M13 11V8a2 2 0 0 1 4 0v6a7 7 0 0 1-7 7H8a5 5 0 0 1-5-5v-1a2 2 0 0 1 2-2h1"/>
+          <path d="M9 11H6a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h3"/>
         </svg>
         <span class="btn-label">Scroll</span>
       </button>
     </div>
 
-    <!-- ── GRUPPE 3: Stift + Farben ────────────────────────────── -->
-    <div class="werkzeug-gruppe" data-gruppe="stift">
+    <!-- ── GRUPPE 3: Zeichenwerkzeuge ─────────────────────────── -->
+    <div class="werkzeug-gruppe">
 
+      <!-- Dünner Stift: schmale Spitze -->
       <button id="btn-stift-duenn" class="werkzeug-btn aktiv"
               data-werkzeug="stift-duenn"
               title="Dünner Stift (2 px)" aria-label="Dünner Stift"
               aria-pressed="true">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+          <!-- Bleistift mit feiner Spitze (Linie dünner als bei dick) -->
+          <path d="M18 2l4 4-13 13H5v-4L18 2z" stroke-width="1.4"/>
+          <line x1="15" y1="5" x2="19" y2="9" stroke-width="1.4"/>
         </svg>
         <span class="btn-label">Fein</span>
       </button>
 
+      <!-- Dicker Stift: breite Spitze, ausgefüllt -->
       <button id="btn-stift-dick" class="werkzeug-btn"
               data-werkzeug="stift-dick"
               title="Dicker Stift (6 px)" aria-label="Dicker Stift"
               aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"
-                stroke-width="2.5"/>
+          <!-- Gleiche Form, aber dickere Striche und breitere Spitze -->
+          <path d="M18 2l4 4-13 13H5v-4L18 2z" stroke-width="2.8"
+                stroke-linejoin="round"/>
+          <line x1="15" y1="5" x2="19" y2="9" stroke-width="2.8"/>
         </svg>
         <span class="btn-label">Dick</span>
       </button>
 
-      <!--
-        FARBPALETTE – 8 Farben in einem 2×4-Grid
-        ANPASSEN: data-farbe und style="background:…" pro Dot ändern.
-
-        Reihenfolge:
-          Zeile 1: Dunkelblau  · Signalrot
-          Zeile 2: Grün        · Violett
-          Zeile 3: Schwarz     · Weiß
-          Zeile 4: Orange      · Türkis   ← NEU
-      -->
-      <div class="farb-palette" role="radiogroup" aria-label="Farbe wählen">
-
-        <button class="farb-dot aktiv" data-farbe="#1a3a6b"
-                style="background:#1a3a6b" title="Dunkelblau"
-                aria-label="Dunkelblau" aria-pressed="true"></button>
-
-        <button class="farb-dot" data-farbe="#e02020"
-                style="background:#e02020" title="Signalrot"
-                aria-label="Signalrot" aria-pressed="false"></button>
-
-        <button class="farb-dot" data-farbe="#1e8a3c"
-                style="background:#1e8a3c" title="Grün"
-                aria-label="Grün" aria-pressed="false"></button>
-
-        <button class="farb-dot" data-farbe="#7b2d8b"
-                style="background:#7b2d8b" title="Violett"
-                aria-label="Violett" aria-pressed="false"></button>
-
-        <button class="farb-dot" data-farbe="#111111"
-                style="background:#111111" title="Schwarz"
-                aria-label="Schwarz" aria-pressed="false"></button>
-
-        <button class="farb-dot farb-dot--hell" data-farbe="#ffffff"
-                style="background:#ffffff" title="Weiß"
-                aria-label="Weiß" aria-pressed="false"></button>
-
-        <!-- NEU: Orange -->
-        <button class="farb-dot" data-farbe="#e86a10"
-                style="background:#e86a10" title="Orange"
-                aria-label="Orange" aria-pressed="false"></button>
-
-        <!-- NEU: Türkis -->
-        <button class="farb-dot" data-farbe="#0097a7"
-                style="background:#0097a7" title="Türkis"
-                aria-label="Türkis" aria-pressed="false"></button>
-
-      </div>
-    </div>
-
-    <!-- ── GRUPPE 4: Sonder-Werkzeuge ───────────────────────────── -->
-    <div class="werkzeug-gruppe" data-gruppe="sonder">
-
+      <!-- Textmarker: Rechteck-Marker-Icon -->
       <button id="btn-textmarker" class="werkzeug-btn"
               data-werkzeug="textmarker"
-              title="Textmarker (gelb, halbtransparent)"
+              title="Textmarker (aktuelle Farbe, halbtransparent)"
               aria-label="Textmarker" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 20h9"/>
-          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          <!-- Breiter Balken = Marker; diagonaler Strich = Textmarker-Geste -->
+          <rect x="3" y="10" width="18" height="6" rx="1" stroke-width="1.6"
+                fill="none"/>
+          <line x1="7" y1="10" x2="7" y2="16" stroke-width="2.5"/>
         </svg>
         <span class="btn-label">Marker</span>
       </button>
 
+      <!-- Radiergummi: Rechteck mit diagonalem Strich -->
       <button id="btn-radierer" class="werkzeug-btn"
               data-werkzeug="radierer"
               title="Radiergummi" aria-label="Radiergummi"
@@ -222,13 +156,79 @@
         <span class="btn-label">Radier</span>
       </button>
 
+      <!-- Laserpointer: Punkt mit Strahlen (klar unterschiedlich von Stift) -->
+      <button id="btn-laser" class="werkzeug-btn"
+              data-werkzeug="laser"
+              title="Laserpointer (leuchtender Punkt mit Schweif)"
+              aria-label="Laserpointer" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <!-- Zielkreuz + Punkt in der Mitte -->
+          <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/>
+          <line x1="12" y1="2"  x2="12" y2="7"  stroke-width="1.8"/>
+          <line x1="12" y1="17" x2="12" y2="22" stroke-width="1.8"/>
+          <line x1="2"  y1="12" x2="7"  y2="12" stroke-width="1.8"/>
+          <line x1="17" y1="12" x2="22" y2="12" stroke-width="1.8"/>
+          <!-- Diagonale Strahlen kürzer für kompaktes Icon -->
+          <line x1="5.5"  y1="5.5"  x2="8"  y2="8"  stroke-width="1.4"/>
+          <line x1="16"   y1="16"   x2="18.5" y2="18.5" stroke-width="1.4"/>
+          <line x1="18.5" y1="5.5"  x2="16" y2="8"  stroke-width="1.4"/>
+          <line x1="5.5"  y1="18.5" x2="8"  y2="16" stroke-width="1.4"/>
+        </svg>
+        <span class="btn-label">Laser</span>
+      </button>
+
     </div>
 
-    <!-- ── GRUPPE 5: Verlauf ─────────────────────────────────────── -->
-    <div class="werkzeug-gruppe" data-gruppe="verlauf">
+    <!-- ── GRUPPE 4: Farbpalette (8 Farben, 2×4) ─────────────── -->
+    <!--
+      ANPASSEN: data-farbe und style="background:…" pro Dot.
+      Zeile 1: Dunkelblau · Signalrot
+      Zeile 2: Grün       · Violett
+      Zeile 3: Schwarz    · Weiß
+      Zeile 4: Orange     · Türkis
+    -->
+    <div class="werkzeug-gruppe">
+      <div class="farb-palette" role="radiogroup" aria-label="Farbe wählen">
 
+        <button class="farb-dot aktiv" data-farbe="#1a3a6b"
+                style="--dot-bg:#1a3a6b" title="Dunkelblau"
+                aria-label="Dunkelblau" aria-pressed="true"></button>
+
+        <button class="farb-dot" data-farbe="#e02020"
+                style="--dot-bg:#e02020" title="Signalrot"
+                aria-label="Signalrot" aria-pressed="false"></button>
+
+        <button class="farb-dot" data-farbe="#1e8a3c"
+                style="--dot-bg:#1e8a3c" title="Grün"
+                aria-label="Grün" aria-pressed="false"></button>
+
+        <button class="farb-dot" data-farbe="#7b2d8b"
+                style="--dot-bg:#7b2d8b" title="Violett"
+                aria-label="Violett" aria-pressed="false"></button>
+
+        <button class="farb-dot" data-farbe="#111111"
+                style="--dot-bg:#111111" title="Schwarz"
+                aria-label="Schwarz" aria-pressed="false"></button>
+
+        <button class="farb-dot farb-dot--hell" data-farbe="#ffffff"
+                style="--dot-bg:#ffffff" title="Weiß"
+                aria-label="Weiß" aria-pressed="false"></button>
+
+        <button class="farb-dot" data-farbe="#e86a10"
+                style="--dot-bg:#e86a10" title="Orange"
+                aria-label="Orange" aria-pressed="false"></button>
+
+        <button class="farb-dot" data-farbe="#0097a7"
+                style="--dot-bg:#0097a7" title="Türkis"
+                aria-label="Türkis" aria-pressed="false"></button>
+
+      </div>
+    </div>
+
+    <!-- ── GRUPPE 5: Verlauf ──────────────────────────────────── -->
+    <div class="werkzeug-gruppe">
       <button id="btn-undo" class="werkzeug-btn"
-              title="Rückgängig" aria-label="Rückgängig">
+              title="Rückgängig (⌘Z)" aria-label="Rückgängig">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <polyline points="1 4 1 10 7 10"/>
           <path d="M3.51 15a9 9 0 1 0 .49-3.48"/>
@@ -237,7 +237,7 @@
       </button>
 
       <button id="btn-redo" class="werkzeug-btn"
-              title="Wiederholen" aria-label="Wiederholen">
+              title="Wiederholen (⌘Y)" aria-label="Wiederholen">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <polyline points="23 4 23 10 17 10"/>
           <path d="M20.49 15a9 9 0 1 1-.49-3.48"/>
@@ -255,37 +255,25 @@
         </svg>
         <span class="btn-label">Löschen</span>
       </button>
-
     </div>
 
-    <!-- ── GRUPPE 6: Modi ────────────────────────────────────────── -->
-    <div class="werkzeug-gruppe" data-gruppe="modi">
+    <!-- ── GRUPPE 6: Modi ─────────────────────────────────────── -->
+    <div class="werkzeug-gruppe">
 
-      <button id="btn-laser" class="werkzeug-btn"
-              data-werkzeug="laser"
-              title="Laserpointer (Striche verschwinden nach 2 Sek.)"
-              aria-label="Laserpointer" aria-pressed="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="3" fill="currentColor"/>
-          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-          <path d="M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12"/>
-          <path d="M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
-        </svg>
-        <span class="btn-label">Laser</span>
-      </button>
-
+      <!-- Spotlight -->
       <button id="btn-spotlight" class="werkzeug-btn"
-              title="Spotlight" aria-label="Spotlight"
+              title="Spotlight (Fokus-Bereich)" aria-label="Spotlight"
               aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="5"/>
-          <path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12"/>
-          <path d="M17.66 17.66l2.12 2.12M1 12h3M20 12h3"/>
-          <path d="M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+          <path d="M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12"/>
+          <path d="M19.07 4.93l-2.12 2.12M6.05 16.95l-2.12 2.12"/>
         </svg>
         <span class="btn-label">Spot</span>
       </button>
 
+      <!-- Lehrer-Layer -->
       <button id="btn-lehrer-layer" class="werkzeug-btn"
               title="Lehrer-Layer" aria-label="Lehrer-Layer"
               aria-pressed="false">
@@ -295,10 +283,8 @@
         </svg>
         <svg id="icon-auge-zu" viewBox="0 0 24 24" aria-hidden="true"
              style="display:none">
-          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8
-                   a18.45 18.45 0 0 1 5.06-5.94"/>
-          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8
-                   a18.5 18.5 0 0 1-2.16 3.19"/>
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
           <line x1="1" y1="1" x2="23" y2="23"/>
         </svg>
         <span class="btn-label">Layer</span>
@@ -306,88 +292,223 @@
 
     </div>
 
-    <!-- ── GRUPPE 7: Export ──────────────────────────────────────── -->
-    <div class="werkzeug-gruppe" data-gruppe="export">
-      <button id="btn-speichern" class="werkzeug-btn werkzeug-btn--primary"
-              title="PDF speichern" aria-label="PDF speichern">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-          <polyline points="17 21 17 13 7 13 7 21"/>
-          <polyline points="7 3 7 8 15 8"/>
-        </svg>
-        <span class="btn-label">Speichern</span>
-      </button>
-    </div>
-
-    <!-- ── Sidebar-Wechsel ───────────────────────────────────────── -->
+    <!-- ── GRUPPE 7: Einstellungen (ganz unten) ──────────────── -->
     <div class="werkzeug-gruppe werkzeug-gruppe--unten">
-      <button id="btn-sidebar-wechsel" class="werkzeug-btn werkzeug-btn--sekundaer"
-              title="Sidebar links/rechts" aria-label="Sidebar-Position wechseln">
+      <button id="btn-einstellungen" class="werkzeug-btn werkzeug-btn--sekundaer"
+              title="Einstellungen" aria-label="Einstellungen öffnen"
+              aria-haspopup="dialog">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M17 1l4 4-4 4M7 23l-4-4 4-4"/>
-          <path d="M3 11V9a4 4 0 0 1 4-4h14M21 13v2a4 4 0 0 1-4 4H3"/>
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06
+                   a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09
+                   A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83
+                   l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09
+                   A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83
+                   l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09
+                   a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83
+                   l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09
+                   a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
-        <span class="btn-label">Seite</span>
+        <span class="btn-label">Einst.</span>
       </button>
     </div>
 
   </aside>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════
-       SPOTLIGHT-OVERLAY
-       Zugpunkte: 4 Ecken + 4 Kanten = 8 Griffe
-  ════════════════════════════════════════════════════════════════ -->
-  <div id="spotlight-overlay" class="spotlight-overlay"
-       style="display:none" aria-hidden="true">
+  <!-- ═══════════════════════════════════════════════════════════
+       EINSTELLUNGSMENÜ (Drawer von der Seite)
+  ══════════════════════════════════════════════════════════════ -->
+  <!--
+    Öffnet sich als Panel über/neben der Sidebar.
+    Enthält: Speichern, Hell/Dunkel-Modus, Sidebar-Seite, Platz für Zukünftiges.
+  -->
+  <div id="einstellungen-overlay" class="einstellungen-overlay"
+       style="display:none" aria-hidden="true" role="dialog"
+       aria-label="Einstellungen" aria-modal="true">
 
-    <!-- Dunkle Maske mit Loch -->
-    <div id="spotlight-maske" class="spotlight-maske"></div>
+    <!-- Hintergrund-Abdunkelung – Klick schließt das Menü -->
+    <div id="einstellungen-backdrop" class="einstellungen-backdrop"></div>
 
-    <!-- Helles Fokus-Fenster -->
-    <div id="spotlight-fenster" class="spotlight-fenster"
-         role="region" aria-label="Fokusbereich">
+    <!-- Panel -->
+    <div class="einstellungen-panel" role="document">
 
-      <!--
-        Zugpunkte an den 4 Ecken und 4 Kanten-Mitten.
-        data-griff: Position des Griffes
-          "no" = Norden-Osten (oben-rechts), "so" = Süden-Osten usw.
-          "n"  = Norden (oben-Mitte), "s" = Süden usw.
-        Der Wert steuert in JS welche Kanten beim Ziehen skaliert werden.
-      -->
-      <div class="spot-griff" data-griff="nw" title="Ecke oben-links"></div>
-      <div class="spot-griff" data-griff="n"  title="Kante oben"></div>
-      <div class="spot-griff" data-griff="ne" title="Ecke oben-rechts"></div>
-      <div class="spot-griff" data-griff="e"  title="Kante rechts"></div>
-      <div class="spot-griff" data-griff="se" title="Ecke unten-rechts"></div>
-      <div class="spot-griff" data-griff="s"  title="Kante unten"></div>
-      <div class="spot-griff" data-griff="sw" title="Ecke unten-links"></div>
-      <div class="spot-griff" data-griff="w"  title="Kante links"></div>
+      <div class="einstellungen-header">
+        <h2 class="einstellungen-titel">Einstellungen</h2>
+        <button id="btn-einstellungen-schliessen"
+                class="einstellungen-schliessen"
+                title="Schließen" aria-label="Einstellungen schließen">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6"  y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- ── Abschnitt: Datei ──────────────────────────────── -->
+      <div class="einstellungen-abschnitt">
+        <h3 class="einstellungen-abschnitt-titel">Datei</h3>
+
+        <button id="btn-speichern" class="einstellungen-btn einstellungen-btn--primary">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          PDF speichern (mit Annotationen)
+        </button>
+      </div>
+
+      <!-- ── Abschnitt: Darstellung ────────────────────────── -->
+      <div class="einstellungen-abschnitt">
+        <h3 class="einstellungen-abschnitt-titel">Darstellung</h3>
+
+        <!-- Hell-/Dunkel-Modus Toggle -->
+        <div class="einstellungen-zeile">
+          <span class="einstellungen-label">
+            <svg viewBox="0 0 24 24" class="einstellungen-zeile-icon" aria-hidden="true">
+              <circle cx="12" cy="12" r="5"/>
+              <line x1="12" y1="1"  x2="12" y2="3"/>
+              <line x1="12" y1="21" x2="12" y2="23"/>
+              <line x1="4.22"  y1="4.22"  x2="5.64"  y2="5.64"/>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+              <line x1="1"  y1="12" x2="3"  y2="12"/>
+              <line x1="21" y1="12" x2="23" y2="12"/>
+              <line x1="4.22"  y1="19.78" x2="5.64"  y2="18.36"/>
+              <line x1="18.36" y1="5.64"  x2="19.78" y2="4.22"/>
+            </svg>
+            Hellmodus
+          </span>
+          <button id="btn-thema-wechsel" class="toggle-btn"
+                  role="switch" aria-checked="false"
+                  title="Zwischen Hell- und Dunkel-Modus wechseln">
+            <span class="toggle-btn__schieber"></span>
+          </button>
+        </div>
+
+        <!-- Sidebar-Position -->
+        <div class="einstellungen-zeile">
+          <span class="einstellungen-label">
+            <svg viewBox="0 0 24 24" class="einstellungen-zeile-icon" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="9" y1="3" x2="9" y2="21"/>
+            </svg>
+            Sidebar
+          </span>
+          <div class="segment-control" role="group" aria-label="Sidebar-Position">
+            <button id="btn-sidebar-links" class="segment-btn"
+                    aria-pressed="false">Links</button>
+            <button id="btn-sidebar-rechts" class="segment-btn aktiv"
+                    aria-pressed="true">Rechts</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Abschnitt: Werkzeuge ──────────────────────────── -->
+      <div class="einstellungen-abschnitt">
+        <h3 class="einstellungen-abschnitt-titel">Werkzeuge</h3>
+
+        <!-- Laser-Timeout -->
+        <div class="einstellungen-zeile einstellungen-zeile--spalte">
+          <span class="einstellungen-label">
+            <svg viewBox="0 0 24 24" class="einstellungen-zeile-icon" aria-hidden="true">
+              <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/>
+              <line x1="12" y1="2"  x2="12" y2="6"/>
+              <line x1="12" y1="18" x2="12" y2="22"/>
+              <line x1="2"  y1="12" x2="6"  y2="12"/>
+              <line x1="18" y1="12" x2="22" y2="12"/>
+            </svg>
+            Laser-Schweif Dauer
+          </span>
+          <div class="slider-zeile">
+            <input type="range" id="slider-laser-dauer"
+                   class="einstellungen-slider"
+                   min="200" max="3000" step="100" value="600"
+                   aria-label="Laser Schweif-Dauer in Millisekunden" />
+            <span id="laser-dauer-anzeige" class="slider-wert">600 ms</span>
+          </div>
+        </div>
+
+        <!-- Radierer-Größe -->
+        <div class="einstellungen-zeile einstellungen-zeile--spalte">
+          <span class="einstellungen-label">
+            <svg viewBox="0 0 24 24" class="einstellungen-zeile-icon" aria-hidden="true">
+              <path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/>
+            </svg>
+            Radierer-Größe
+          </span>
+          <div class="slider-zeile">
+            <input type="range" id="slider-radierer"
+                   class="einstellungen-slider"
+                   min="8" max="80" step="4" value="28"
+                   aria-label="Radierer-Größe in Pixeln" />
+            <span id="radierer-anzeige" class="slider-wert">28 px</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Abschnitt: Platzhalter für zukünftige Einstellungen -->
+      <div class="einstellungen-abschnitt">
+        <h3 class="einstellungen-abschnitt-titel">Weitere Optionen</h3>
+        <p class="einstellungen-hinweis">
+          Hier können weitere Einstellungen ergänzt werden.
+        </p>
+      </div>
+
+      <!-- App-Version ganz unten -->
+      <div class="einstellungen-footer">
+        <span class="einstellungen-version">EduLayer v4 – Lokal &amp; Datenschutz-konform</span>
+      </div>
 
     </div>
-
-    <!-- Mini-Toolbar -->
-    <div id="spotlight-toolbar" class="spotlight-toolbar">
-      <button id="btn-spotlight-rechteck" class="spotlight-form-btn aktiv"
-              title="Rechteck" aria-label="Rechteck" aria-pressed="true">▭</button>
-      <button id="btn-spotlight-oval" class="spotlight-form-btn"
-              title="Oval" aria-label="Oval" aria-pressed="false">◯</button>
-      <button id="btn-spotlight-schliessen" class="spotlight-form-btn"
-              title="Schließen" aria-label="Schließen">✕</button>
-    </div>
-
   </div>
 
 
-  <!-- ═══════════════════════════════════════════════════════════════
-       ZOOM-STEUERUNG
-  ════════════════════════════════════════════════════════════════ -->
+  <!-- ═══════════════════════════════════════════════════════════
+       SPOTLIGHT-OVERLAY
+  ══════════════════════════════════════════════════════════════ -->
+  <div id="spotlight-overlay" class="spotlight-overlay"
+       style="display:none" aria-hidden="true">
+    <div id="spotlight-maske" class="spotlight-maske"></div>
+    <div id="spotlight-fenster" class="spotlight-fenster"
+         role="region" aria-label="Fokusbereich">
+      <!-- 8 Zugpunkte -->
+      <div class="spot-griff" data-griff="nw"></div>
+      <div class="spot-griff" data-griff="n"></div>
+      <div class="spot-griff" data-griff="ne"></div>
+      <div class="spot-griff" data-griff="e"></div>
+      <div class="spot-griff" data-griff="se"></div>
+      <div class="spot-griff" data-griff="s"></div>
+      <div class="spot-griff" data-griff="sw"></div>
+      <div class="spot-griff" data-griff="w"></div>
+    </div>
+    <div id="spotlight-toolbar" class="spotlight-toolbar">
+      <button id="btn-spotlight-rechteck" class="spotlight-form-btn aktiv"
+              aria-pressed="true">▭</button>
+      <button id="btn-spotlight-oval" class="spotlight-form-btn"
+              aria-pressed="false">◯</button>
+      <button id="btn-spotlight-schliessen" class="spotlight-form-btn">✕</button>
+    </div>
+  </div>
+
+
+  <!-- Zoom-Steuerung -->
   <div id="zoom-steuerung" class="zoom-steuerung" style="display:none">
     <button id="btn-zoom-minus" class="zoom-btn" title="Verkleinern">−</button>
     <span   id="zoom-anzeige"  class="zoom-anzeige">100%</span>
     <button id="btn-zoom-plus"  class="zoom-btn" title="Vergrößern">+</button>
     <button id="btn-zoom-reset" class="zoom-btn zoom-btn--reset" title="Zurücksetzen">↺</button>
   </div>
+
+  <!-- Laser-Canvas: eigener fixer Canvas über allem für den Laser-Punkt -->
+  <!--
+    Der Laser-Punkt wird NICHT auf den Zeichen-Canvas gezeichnet,
+    sondern auf diesen separaten Canvas der sich mit dem Zoom bewegt.
+    Dadurch werden nie bestehende Annotationen gelöscht.
+  -->
+  <canvas id="laser-canvas" class="laser-canvas" aria-hidden="true"></canvas>
 
   <!-- Toast + Lade-Overlay -->
   <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
