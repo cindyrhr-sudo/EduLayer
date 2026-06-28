@@ -1,10 +1,10 @@
 /*
   ╔══════════════════════════════════════════════════════════════════╗
-  ║  EduLayer – Stylesheet  (Version 4)                             ║
+  ║  EduLayer – Stylesheet  (Version 5)                             ║
   ╚══════════════════════════════════════════════════════════════════╝
 
   INHALTSVERZEICHNIS:
-   1.  Thema-Variablen (Dunkel + Hell)   ← HIER ANPASSEN
+   1.  Thema-Variablen (Dunkel + Hell)
    2.  Reset & Basis
    3.  Layout
    4.  Sidebar-Positionierung
@@ -14,40 +14,36 @@
    8.  Zoom-Wrapper & PDF-Container
    9.  Zoom-Steuerung
   10.  Start-Anzeige
-  11.  Einstellungsmenü (Drawer)
-  12.  Toggle-Button (Hell/Dunkel)
-  13.  Segment-Control (Sidebar-Seite)
-  14.  Einstellungs-Slider
-  15.  Spotlight-Overlay & Zugpunkte
-  16.  Laser-Canvas
-  17.  Toast
-  18.  Lade-Indikator
+  11.  Geodreieck-Overlay
+  12.  Lehrer-Notizen Panel
+  13.  Einstellungsmenü
+  14.  Toggle & Segment-Control
+  15.  Slider & Color-Picker
+  16.  Spotlight
+  17.  Laser-Canvas
+  18.  Toast & Lade-Indikator
   19.  Animationen
-  20.  Barrierefreiheit
-  21.  Responsive
+  20.  Barrierefreiheit & Responsive
 */
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   1. THEMA-VARIABLEN  ← HIER FARBEN ANPASSEN
+   1. THEMA-VARIABLEN
 ════════════════════════════════════════════════════════════════════ */
-
-/* ── Dunkel-Modus (Standard) ────────────────────────────────────── */
 :root,
 [data-thema="dunkel"] {
   --app-bg:            #1a1f2e;
-  --seite-bg:          #12151e;    /* Hintergrund hinter dem PDF */
+  --seite-bg:          #12151e;
   --sidebar-bg:        #0f1219;
   --sidebar-rand:      #252d42;
-  --panel-bg:          #161b28;    /* Einstellungs-Panel */
+  --panel-bg:          #161b28;
   --panel-rand:        #2a3252;
   --akzent:            #4a8cf7;
   --akzent-dunkel:     #2d6fd4;
   --gefahr:            #e02020;
-  --erfolg:            #1e8a3c;
-  --text-1:            #e8ecf4;    /* Primärer Text */
-  --text-2:            #8a95b0;    /* Sekundärer Text */
-  --text-3:            #4e5875;    /* Tertiärer Text / Hinweise */
+  --text-1:            #e8ecf4;
+  --text-2:            #8a95b0;
+  --text-3:            #4e5875;
   --btn-bg:            #1d2335;
   --btn-bg-hover:      #28304d;
   --btn-bg-aktiv:      #162d6a;
@@ -60,11 +56,17 @@
   --griff-farbe:       rgba(255,255,255,0.92);
   --griff-rand:        rgba(0,0,0,0.35);
   --backdrop:          rgba(0,0,0,0.55);
-
-  /* Farb-Dot Hintergründe werden per CSS-Variable gesetzt (s. HTML style="--dot-bg:…") */
+  --geo-fill:          rgba(100,200,255,0.10);
+  --geo-stroke:        rgba(100,200,255,0.65);
+  --geo-text:          rgba(100,200,255,0.85);
+  --geo-griff-bg:      rgba(30,40,70,0.92);
+  --notiz-bg:          #1a2038;
+  --notiz-rand:        #2a3252;
+  --textarea-bg:       #111827;
+  --vorlage-bg:        #1d2335;
+  --vorlage-bg-hover:  #28304d;
 }
 
-/* ── Hell-Modus ─────────────────────────────────────────────────── */
 [data-thema="hell"] {
   --app-bg:            #e8eaf0;
   --seite-bg:          #d0d4de;
@@ -75,7 +77,6 @@
   --akzent:            #1a5dc8;
   --akzent-dunkel:     #0f3e8e;
   --gefahr:            #c41c1c;
-  --erfolg:            #166830;
   --text-1:            #0f1520;
   --text-2:            #3a4460;
   --text-3:            #7a84a0;
@@ -91,25 +92,34 @@
   --griff-farbe:       rgba(255,255,255,0.95);
   --griff-rand:        rgba(0,0,0,0.25);
   --backdrop:          rgba(0,0,0,0.35);
+  --geo-fill:          rgba(0,100,200,0.07);
+  --geo-stroke:        rgba(0,100,200,0.55);
+  --geo-text:          rgba(0,80,180,0.80);
+  --geo-griff-bg:      rgba(240,244,255,0.95);
+  --notiz-bg:          #f8f9ff;
+  --notiz-rand:        #d0d4e0;
+  --textarea-bg:       #ffffff;
+  --vorlage-bg:        #e8eaf4;
+  --vorlage-bg-hover:  #d8dcec;
 }
 
-/* ── Gemeinsame Design-Token ────────────────────────────────────── */
 :root {
-  --sidebar-breite:    62px;
-  --btn-groesse:       46px;
-  --btn-radius:        10px;
-  --btn-icon:          20px;
-  --dot-groesse:       24px;
-  --gruppe-gap:        4px;
-  --gruppe-pad:        6px;
-  --griff-groesse:     22px;
-  --griff-radius:      4px;
-  --panel-breite:      300px;
+  --sidebar-breite:  62px;
+  --btn-groesse:     46px;
+  --btn-radius:      10px;
+  --btn-icon:        20px;
+  --dot-groesse:     24px;
+  --gruppe-gap:      4px;
+  --gruppe-pad:      6px;
+  --griff-groesse:   22px;
+  --griff-radius:    4px;
+  --panel-breite:    320px;
+  --notiz-breite:    340px;
   --schrift: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
-  --label-sz:          9px;
-  --t-schnell:         110ms ease;
-  --t-normal:          220ms ease;
-  --t-panel:           280ms cubic-bezier(0.32, 0.72, 0, 1);
+  --label-sz:        9px;
+  --t-schnell:       110ms ease;
+  --t-normal:        220ms ease;
+  --t-panel:         280ms cubic-bezier(0.32,0.72,0,1);
 }
 
 
@@ -117,27 +127,16 @@
    2. RESET & BASIS
 ════════════════════════════════════════════════════════════════════ */
 *, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0; padding: 0;
+  box-sizing: border-box; margin: 0; padding: 0;
   -webkit-tap-highlight-color: transparent;
 }
-html {
-  height: 100%;
-  overflow: hidden;
-  -webkit-user-select: none;
-  user-select: none;
-}
+html { height: 100%; overflow: hidden; -webkit-user-select: none; user-select: none; }
 body {
   font-family: var(--schrift);
-  background: var(--app-bg);
-  color: var(--text-1);
-  height: 100dvh;
-  width: 100dvw;
-  overflow: hidden;
-  display: flex;
-  position: fixed;
-  inset: 0;
-  padding-top:    env(safe-area-inset-top);
+  background: var(--app-bg); color: var(--text-1);
+  height: 100dvh; width: 100dvw;
+  overflow: hidden; display: flex; position: fixed; inset: 0;
+  padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   transition: background var(--t-normal), color var(--t-normal);
 }
@@ -147,11 +146,8 @@ body {
    3. LAYOUT
 ════════════════════════════════════════════════════════════════════ */
 .hauptbereich {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  overflow: hidden;
-  position: relative;
+  flex: 1; min-width: 0; height: 100%;
+  overflow: hidden; position: relative;
   background: var(--seite-bg);
   transition: background var(--t-normal);
 }
@@ -161,37 +157,26 @@ body {
    4. SIDEBAR-POSITIONIERUNG
 ════════════════════════════════════════════════════════════════════ */
 .sidebar {
-  width: var(--sidebar-breite);
-  min-width: var(--sidebar-breite);
-  height: 100%;
-  background: var(--sidebar-bg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 7px 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: none;
-  scrollbar-width: none;
-  z-index: 100;
-  flex-shrink: 0;
-  touch-action: pan-y;
-  transition: background var(--t-normal), border-color var(--t-normal);
+  width: var(--sidebar-breite); min-width: var(--sidebar-breite);
+  height: 100%; background: var(--sidebar-bg);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 7px 0; overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: none; scrollbar-width: none;
+  z-index: 100; flex-shrink: 0; touch-action: pan-y;
+  transition: background var(--t-normal);
 }
 .sidebar::-webkit-scrollbar { display: none; }
 
 [data-sidebar="right"] { flex-direction: row; }
 [data-sidebar="right"] .hauptbereich { order: 0; }
 [data-sidebar="right"] .sidebar {
-  order: 1;
-  border-left: 1px solid var(--sidebar-rand);
+  order: 1; border-left: 1px solid var(--sidebar-rand);
   padding-right: env(safe-area-inset-right);
 }
 [data-sidebar="left"] { flex-direction: row; }
 [data-sidebar="left"] .hauptbereich { order: 1; }
 [data-sidebar="left"] .sidebar {
-  order: 0;
-  border-right: 1px solid var(--sidebar-rand);
+  order: 0; border-right: 1px solid var(--sidebar-rand);
   padding-left: env(safe-area-inset-left);
 }
 
@@ -200,128 +185,84 @@ body {
    5. SIDEBAR-INHALTE & BUTTONS
 ════════════════════════════════════════════════════════════════════ */
 .sidebar-logo {
-  width: var(--btn-groesse);
-  height: var(--btn-groesse);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 2px;
-  flex-shrink: 0;
+  width: var(--btn-groesse); height: var(--btn-groesse);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 2px; flex-shrink: 0;
 }
 .logo-icon { font-size: 20px; }
 
 .werkzeug-gruppe {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--gruppe-gap);
-  width: 100%;
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--gruppe-gap); width: 100%;
   padding: var(--gruppe-pad) 0;
-  border-bottom: 1px solid var(--sidebar-rand);
-  flex-shrink: 0;
+  border-bottom: 1px solid var(--sidebar-rand); flex-shrink: 0;
 }
 .werkzeug-gruppe:last-of-type { border-bottom: none; }
 .werkzeug-gruppe--unten {
   margin-top: auto;
-  border-top: 1px solid var(--sidebar-rand);
-  border-bottom: none;
+  border-top: 1px solid var(--sidebar-rand); border-bottom: none;
   padding-bottom: 10px;
 }
 
 .werkzeug-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  width: var(--btn-groesse);
-  height: var(--btn-groesse);
-  min-width: 44px;
-  min-height: 44px;
-  border: none;
-  border-radius: var(--btn-radius);
-  background: var(--btn-bg);
-  color: var(--text-2);
-  cursor: pointer;
-  flex-shrink: 0;
-  touch-action: manipulation;
-  transition:
-    background var(--t-schnell),
-    color var(--t-schnell),
-    transform var(--t-schnell);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px;
+  width: var(--btn-groesse); height: var(--btn-groesse);
+  min-width: 44px; min-height: 44px;
+  border: none; border-radius: var(--btn-radius);
+  background: var(--btn-bg); color: var(--text-2);
+  cursor: pointer; flex-shrink: 0; touch-action: manipulation;
+  transition: background var(--t-schnell), color var(--t-schnell), transform var(--t-schnell);
 }
 .werkzeug-btn svg {
-  width: var(--btn-icon);
-  height: var(--btn-icon);
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  flex-shrink: 0;
-  pointer-events: none;
+  width: var(--btn-icon); height: var(--btn-icon);
+  fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+  flex-shrink: 0; pointer-events: none;
 }
 .btn-label {
-  font-size: var(--label-sz);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  opacity: 0;
-  transition: opacity var(--t-schnell);
-  pointer-events: none;
-  line-height: 1;
+  font-size: var(--label-sz); font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  opacity: 0; transition: opacity var(--t-schnell);
+  pointer-events: none; line-height: 1;
 }
 
-/* Zustände */
-.werkzeug-btn:hover                          { background: var(--btn-bg-hover); color: var(--text-1); }
-.werkzeug-btn:hover .btn-label               { opacity: 1; }
+.werkzeug-btn:hover                            { background: var(--btn-bg-hover); color: var(--text-1); }
+.werkzeug-btn:hover .btn-label                 { opacity: 1; }
 .werkzeug-btn.aktiv,
-.werkzeug-btn[aria-pressed="true"]           { background: var(--btn-bg-aktiv); color: var(--btn-aktiv-farbe); }
+.werkzeug-btn[aria-pressed="true"]             { background: var(--btn-bg-aktiv); color: var(--btn-aktiv-farbe); }
 .werkzeug-btn.aktiv .btn-label,
-.werkzeug-btn[aria-pressed="true"] .btn-label { opacity: 1; }
-.werkzeug-btn:active                         { transform: scale(0.90); background: var(--btn-bg-aktiv); }
-
+.werkzeug-btn[aria-pressed="true"] .btn-label  { opacity: 1; }
+.werkzeug-btn:active                           { transform: scale(0.90); background: var(--btn-bg-aktiv); }
 .werkzeug-btn--gefahr       { color: var(--gefahr); }
 .werkzeug-btn--gefahr:hover { background: rgba(224,32,32,0.12); color: var(--gefahr); }
 .werkzeug-btn--sekundaer    { background: transparent; color: var(--text-3); }
 
-/* Scroll-Modus-Button: leuchtet orange wenn aktiv */
 body.scroll-modus #btn-modus-wechsel {
-  background: rgba(232,106,16,0.18);
-  color: #e86a10;
+  background: rgba(232,106,16,0.18); color: #e86a10;
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   6. FARBPALETTE (8 Dots, 2×4)
+   6. FARBPALETTE
 ════════════════════════════════════════════════════════════════════ */
 .farb-palette {
   display: grid;
   grid-template-columns: repeat(2, var(--dot-groesse));
-  gap: 5px;
-  padding: 3px 0;
+  gap: 5px; padding: 3px 0;
 }
 .farb-dot {
-  width: var(--dot-groesse);
-  height: var(--dot-groesse);
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  touch-action: manipulation;
-  /* Hintergrundfarbe via CSS-Variable aus style="--dot-bg:…" */
+  width: var(--dot-groesse); height: var(--dot-groesse);
+  border-radius: 50%; border: 2px solid transparent;
+  cursor: pointer; touch-action: manipulation;
   background-color: var(--dot-bg, #888);
   transition: transform var(--t-schnell), border-color var(--t-schnell);
 }
 .farb-dot:hover { transform: scale(1.18); border-color: rgba(255,255,255,0.4); }
 .farb-dot.aktiv,
 .farb-dot[aria-pressed="true"] {
-  border-color: var(--text-1);
-  transform: scale(1.12);
+  border-color: var(--text-1); transform: scale(1.12);
   box-shadow: 0 0 0 2px rgba(255,255,255,0.2);
-}
-[data-thema="hell"] .farb-dot.aktiv,
-[data-thema="hell"] .farb-dot[aria-pressed="true"] {
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
 }
 .farb-dot--hell { border-color: var(--sidebar-rand); }
 
@@ -330,124 +271,75 @@ body.scroll-modus #btn-modus-wechsel {
    7. SCROLL-MODUS
 ════════════════════════════════════════════════════════════════════ */
 .zoom-wrapper {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  touch-action: none;
+  width: 100%; height: 100%;
+  overflow: hidden; touch-action: none;
   overscroll-behavior: none;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  display: flex; align-items: flex-start; justify-content: center;
 }
 body.scroll-modus .zoom-wrapper {
-  overflow: auto;
-  touch-action: pan-x pan-y;
+  overflow: auto; touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
 }
-body.scroll-modus .zeichen-canvas {
-  cursor: grab;
-  pointer-events: none;
-}
+body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
 
 
 /* ═══════════════════════════════════════════════════════════════════
    8. PDF-CONTAINER & SEITEN
 ════════════════════════════════════════════════════════════════════ */
 .pdf-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 20px;
   padding: 20px 16px 60px;
-  width: max-content;
-  min-width: 100%;
+  width: max-content; min-width: 100%;
   transform-origin: top center;
 }
 .seite-container {
-  position: relative;
-  display: block;
-  flex-shrink: 0;
+  position: relative; display: block; flex-shrink: 0;
   box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.25);
-  border-radius: 2px;
-  overflow: hidden;
+  border-radius: 2px; overflow: hidden;
 }
 .seite-container::before {
   content: "Seite " attr(data-seite);
-  position: absolute;
-  bottom: calc(100% + 5px);
-  left: 0;
-  font-size: 11px;
-  color: var(--text-3);
-  pointer-events: none;
-  user-select: none;
+  position: absolute; bottom: calc(100% + 5px); left: 0;
+  font-size: 11px; color: var(--text-3);
+  pointer-events: none; user-select: none;
 }
-.pdf-canvas {
-  display: block;
-  position: relative;
-  z-index: 1;
-}
+.pdf-canvas    { display: block; position: relative; z-index: 1; }
 .zeichen-canvas {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  cursor: crosshair;
-  touch-action: none;
+  position: absolute; inset: 0; z-index: 2;
+  cursor: crosshair; touch-action: none;
 }
 .zeichen-canvas[data-werkzeug="radierer"]   { cursor: cell; }
 .zeichen-canvas[data-werkzeug="textmarker"] { cursor: text; }
-.lehrer-canvas {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  pointer-events: none;
-}
+.lehrer-canvas  { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 
 
 /* ═══════════════════════════════════════════════════════════════════
    9. ZOOM-STEUERUNG
 ════════════════════════════════════════════════════════════════════ */
 .zoom-steuerung {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
+  position: fixed; bottom: 20px; left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-rand);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-radius: 14px;
-  padding: 6px 10px;
-  z-index: 200;
-  touch-action: manipulation;
-  transition: background var(--t-normal), border-color var(--t-normal);
+  display: flex; align-items: center; gap: 4px;
+  background: var(--panel-bg); border: 1px solid var(--panel-rand);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-radius: 14px; padding: 6px 10px;
+  z-index: 200; touch-action: manipulation;
+  transition: background var(--t-normal);
 }
 .zoom-btn {
-  width: 36px; height: 36px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-1);
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 36px;
-  touch-action: manipulation;
+  width: 36px; height: 36px; border: none; border-radius: 8px;
+  background: transparent; color: var(--text-1); font-size: 20px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  min-width: 36px; touch-action: manipulation;
   transition: background var(--t-schnell);
 }
 .zoom-btn:hover  { background: var(--btn-bg-hover); }
 .zoom-btn:active { background: var(--btn-bg-aktiv); transform: scale(0.92); }
 .zoom-btn--reset { font-size: 16px; color: var(--text-2); }
 .zoom-anzeige {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-  min-width: 44px;
-  text-align: center;
+  font-size: 13px; font-weight: 600; color: var(--text-2);
+  min-width: 44px; text-align: center;
 }
 
 
@@ -455,41 +347,24 @@ body.scroll-modus .zeichen-canvas {
    10. START-ANZEIGE
 ════════════════════════════════════════════════════════════════════ */
 .start-anzeige {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center; z-index: 10;
 }
 .start-anzeige__inhalt {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  max-width: 300px;
-  text-align: center;
-  padding: 36px 28px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-rand);
-  border-radius: 20px;
-  transition: background var(--t-normal);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  max-width: 300px; text-align: center; padding: 36px 28px;
+  background: var(--panel-bg); border: 1px solid var(--panel-rand);
+  border-radius: 20px; transition: background var(--t-normal);
 }
 .start-anzeige__icon  { font-size: 52px; animation: schweben 3.2s ease-in-out infinite; }
 .start-anzeige__titel { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
 .start-anzeige__text  { font-size: 14px; color: var(--text-2); line-height: 1.6; }
 .start-anzeige__btn {
-  margin-top: 6px;
-  padding: 13px 28px;
-  background: var(--akzent);
-  color: #fff;
-  border: none;
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  min-height: 48px;
-  touch-action: manipulation;
+  margin-top: 6px; padding: 13px 28px;
+  background: var(--akzent); color: #fff;
+  border: none; border-radius: 12px;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  min-height: 48px; touch-action: manipulation;
   transition: background var(--t-schnell), transform var(--t-schnell);
 }
 .start-anzeige__btn:hover  { background: var(--akzent-dunkel); }
@@ -497,355 +372,465 @@ body.scroll-modus .zeichen-canvas {
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   11. EINSTELLUNGSMENÜ (Drawer)
-   Öffnet sich als Panel von der Sidebar-Seite.
+   11. GEODREIECK-OVERLAY
+   Das Geodreieck liegt als absolut positionierter Wrapper im
+   hauptbereich. Der Wrapper selbst wird per JS mit transform
+   (translate + rotate) bewegt. Pointer-events nur auf den Griffen
+   und dem SVG-Körper, nicht auf dem transparenten Bereich.
 ════════════════════════════════════════════════════════════════════ */
-.einstellungen-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 600;
-  pointer-events: all;
+.geodreieck-wrapper {
+  position: absolute;
+  /* Startposition wird per JS gesetzt */
+  top: 60px; left: 40px;
+  z-index: 300;
+  /* Transformation: translate(x,y) rotate(deg) – komplett per JS */
+  transform-origin: 0 100%;  /* Drehpunkt = untere linke Ecke (rechter Winkel) */
+  touch-action: none;
+  /* Pointer-Events nur auf sichtbaren Teilen */
+  pointer-events: none;
 }
 
-/* Halbtransparenter Hintergrund */
-.einstellungen-backdrop {
+.geodreieck-svg {
+  /*
+    Breite wird per JS auf Basis der PDF-DPI gesetzt.
+    Maße: viewBox="0 0 300 150" entspricht 15cm × 7.5cm
+    bei Standard-PDF-Auflösung (72 dpi).
+    JS berechnet: px_pro_cm = (canvas.width / pdf_breite_cm)
+    SVG-Breite = px_pro_cm * 15 (cm)
+  */
+  width: 300px;   /* Startwert, wird per JS überschrieben */
+  height: 150px;
+  overflow: visible;
+  pointer-events: all;  /* SVG empfängt Klicks (für Stift-Snap) */
+  cursor: default;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.35));
+}
+
+/* Geodreieck-Beschriftungen (Zahlen, Winkel) */
+.geo-label {
+  font-family: var(--schrift);
+  font-size: 5px;
+  fill: var(--geo-text);
+  font-weight: 500;
+  user-select: none;
+}
+.geo-label-gross {
+  font-size: 7px;
+  font-weight: 700;
+}
+
+/* Griffe */
+.geo-dreh-griff,
+.geo-move-griff {
   position: absolute;
-  inset: 0;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--geo-griff-bg);
+  border: 1.5px solid var(--geo-stroke);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  pointer-events: all;
+  touch-action: none;
+  transition: transform 80ms ease, background 80ms ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+.geo-dreh-griff svg,
+.geo-move-griff svg {
+  width: 16px; height: 16px;
+  fill: none; stroke: var(--geo-stroke);
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  pointer-events: none;
+}
+.geo-dreh-griff:hover,
+.geo-move-griff:hover {
+  background: var(--btn-bg-hover);
+  transform: scale(1.15);
+}
+.geo-dreh-griff:active,
+.geo-move-griff:active { transform: scale(0.95); }
+
+/* Dreh-Griff: sitzt an der Spitze (oben links im wrapper) */
+.geo-dreh-griff {
+  position: absolute;
+  top: -40px; left: -16px;
+  cursor: grab;
+}
+.geo-dreh-griff:active { cursor: grabbing; }
+
+/* Move-Griff: Mitte des Geodreiecks (ca. 1/3 der Basis, 1/3 Höhe) */
+.geo-move-griff {
+  position: absolute;
+  /* Wird per JS positioniert basierend auf SVG-Größe */
+  bottom: 6px; left: 40%;
+  cursor: grab;
+  transform: translateX(-50%);
+}
+.geo-move-griff:active { cursor: grabbing; }
+
+/*
+  Snap-Indikator: erscheint wenn Stift nah an einer Geo-Kante ist.
+  Zeigt eine Linie entlang der Snap-Kante.
+*/
+.geo-snap-indikator {
+  position: absolute;
+  pointer-events: none;
+  z-index: 301;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   12. LEHRER-NOTIZEN PANEL
+════════════════════════════════════════════════════════════════════ */
+.notizen-overlay {
+  position: fixed; inset: 0; z-index: 600; pointer-events: all;
+}
+.notizen-backdrop {
+  position: absolute; inset: 0;
   background: var(--backdrop);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
   animation: backdrop-ein 250ms ease forwards;
 }
-
-/* Panel */
-.einstellungen-panel {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: var(--panel-breite);
-  max-width: 90vw;
+.notizen-panel {
+  position: absolute; top: 0; bottom: 0;
+  width: var(--notiz-breite); max-width: 92vw;
   background: var(--panel-bg);
-  border-left: 1px solid var(--panel-rand);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: none;
-  touch-action: pan-y;
+  display: flex; flex-direction: column;
+  overflow: hidden;
   box-shadow: -8px 0 32px rgba(0,0,0,0.3);
-  animation: panel-ein var(--t-panel) forwards;
+  animation: panel-ein-rechts var(--t-panel) forwards;
+  transition: background var(--t-normal);
 }
 
-/* Panel rechts wenn Sidebar rechts */
-[data-sidebar="right"] .einstellungen-panel {
+/* Panel rechts von Sidebar (Standard: Sidebar rechts) */
+[data-sidebar="right"] .notizen-panel {
   right: var(--sidebar-breite);
-  border-right: none;
   border-left: 1px solid var(--panel-rand);
   animation-name: panel-ein-rechts;
 }
-/* Panel links wenn Sidebar links */
-[data-sidebar="left"] .einstellungen-panel {
+[data-sidebar="left"] .notizen-panel {
   left: var(--sidebar-breite);
-  border-left: none;
   border-right: 1px solid var(--panel-rand);
   animation-name: panel-ein-links;
 }
 
 /* Header */
-.einstellungen-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 20px 16px;
+.notizen-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--panel-rand);
+  flex-shrink: 0; gap: 8px;
+}
+.notizen-titel {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 16px; font-weight: 700; color: var(--text-1);
+}
+.notizen-titel-icon {
+  width: 18px; height: 18px;
+  fill: none; stroke: var(--akzent);
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.notizen-header-actions {
+  display: flex; align-items: center; gap: 8px;
+}
+.notizen-seite-info {
+  font-size: 12px; font-weight: 600;
+  color: var(--text-3);
+  background: var(--btn-bg);
+  padding: 3px 8px; border-radius: 6px;
+  white-space: nowrap;
+}
+
+/* Seiten-Navigation */
+.notizen-nav {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--panel-rand);
   flex-shrink: 0;
 }
-.einstellungen-titel {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-1);
-  letter-spacing: -0.01em;
-}
-.einstellungen-schliessen {
+.notizen-nav-btn {
   width: 32px; height: 32px;
-  border: none;
-  border-radius: 8px;
-  background: var(--btn-bg);
-  color: var(--text-2);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border: none; border-radius: 8px;
+  background: var(--btn-bg); color: var(--text-1);
+  font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
   touch-action: manipulation;
+  transition: background var(--t-schnell);
+}
+.notizen-nav-btn:hover  { background: var(--btn-bg-hover); }
+.notizen-nav-btn:active { background: var(--btn-bg-aktiv); }
+.notizen-nav-info {
+  font-size: 13px; font-weight: 500; color: var(--text-2);
+  min-width: 80px; text-align: center;
+}
+
+/* Textarea */
+.notizen-inhalt {
+  flex: 1; padding: 12px 16px;
+  overflow: hidden; display: flex; flex-direction: column;
+}
+.notizen-textarea {
+  flex: 1; width: 100%;
+  background: var(--textarea-bg);
+  border: 1px solid var(--panel-rand);
+  border-radius: 10px;
+  color: var(--text-1);
+  font-family: var(--schrift);
+  font-size: 14px; line-height: 1.65;
+  padding: 12px 14px;
+  resize: none; outline: none;
+  /* Text-Eingabe erlaubt – user-select zurücksetzen */
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: auto;
+  transition: border-color var(--t-schnell), background var(--t-normal);
+}
+.notizen-textarea:focus {
+  border-color: var(--akzent);
+  box-shadow: 0 0 0 2px rgba(74,140,247,0.2);
+}
+.notizen-textarea::placeholder { color: var(--text-3); }
+
+/* Vorlagen */
+.notizen-vorlagen {
+  padding: 8px 16px 10px;
+  border-top: 1px solid var(--panel-rand);
+  flex-shrink: 0;
+}
+.notizen-vorlagen-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-3);
+  display: block; margin-bottom: 6px;
+}
+.notizen-vorlagen-liste {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.notiz-vorlage-btn {
+  padding: 5px 10px;
+  background: var(--vorlage-bg);
+  border: 1px solid var(--panel-rand);
+  border-radius: 8px; color: var(--text-2);
+  font-size: 12px; font-weight: 500;
+  cursor: pointer; touch-action: manipulation;
   transition: background var(--t-schnell), color var(--t-schnell);
 }
+.notiz-vorlage-btn:hover  { background: var(--vorlage-bg-hover); color: var(--text-1); }
+.notiz-vorlage-btn:active { transform: scale(0.95); }
+
+/* Footer */
+.notizen-footer {
+  display: flex; gap: 8px;
+  padding: 10px 16px 16px;
+  border-top: 1px solid var(--panel-rand);
+  flex-shrink: 0;
+}
+.notizen-footer-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 12px;
+  background: var(--btn-bg); border: none; border-radius: 10px;
+  color: var(--text-2); font-size: 13px; font-weight: 500;
+  cursor: pointer; touch-action: manipulation;
+  transition: background var(--t-schnell), color var(--t-schnell);
+}
+.notizen-footer-btn svg {
+  width: 15px; height: 15px;
+  fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round;
+}
+.notizen-footer-btn:hover  { background: var(--btn-bg-hover); color: var(--text-1); }
+.notizen-footer-btn--gefahr { color: var(--gefahr); }
+.notizen-footer-btn--gefahr:hover { background: rgba(224,32,32,0.12); color: var(--gefahr); }
+
+/* Schließen-Button (geteilt mit Einstellungen) */
+.einstellungen-schliessen {
+  width: 32px; height: 32px; border: none; border-radius: 8px;
+  background: var(--btn-bg); color: var(--text-2); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  touch-action: manipulation;
+  transition: background var(--t-schnell), color var(--t-schnell);
+  flex-shrink: 0;
+}
 .einstellungen-schliessen svg {
-  width: 16px; height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
+  width: 16px; height: 16px; fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round;
 }
 .einstellungen-schliessen:hover { background: var(--btn-bg-hover); color: var(--text-1); }
 
-/* Abschnitte */
+
+/* ═══════════════════════════════════════════════════════════════════
+   13. EINSTELLUNGSMENÜ
+════════════════════════════════════════════════════════════════════ */
+.einstellungen-overlay {
+  position: fixed; inset: 0; z-index: 610; pointer-events: all;
+}
+.einstellungen-backdrop {
+  position: absolute; inset: 0;
+  background: var(--backdrop);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  animation: backdrop-ein 250ms ease forwards;
+}
+.einstellungen-panel {
+  position: absolute; top: 0; bottom: 0;
+  width: var(--panel-breite); max-width: 90vw;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--panel-rand);
+  display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: none; touch-action: pan-y;
+  box-shadow: -8px 0 32px rgba(0,0,0,0.3);
+  animation: panel-ein-rechts var(--t-panel) forwards;
+  transition: background var(--t-normal);
+}
+[data-sidebar="right"] .einstellungen-panel {
+  right: var(--sidebar-breite); border-right: none; border-left: 1px solid var(--panel-rand);
+  animation-name: panel-ein-rechts;
+}
+[data-sidebar="left"] .einstellungen-panel {
+  left: var(--sidebar-breite); border-left: none; border-right: 1px solid var(--panel-rand);
+  animation-name: panel-ein-links;
+}
+
+.einstellungen-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 20px 16px; border-bottom: 1px solid var(--panel-rand); flex-shrink: 0;
+}
+.einstellungen-titel { font-size: 18px; font-weight: 700; color: var(--text-1); }
 .einstellungen-abschnitt {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--panel-rand);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  padding: 16px 20px; border-bottom: 1px solid var(--panel-rand);
+  display: flex; flex-direction: column; gap: 12px;
 }
 .einstellungen-abschnitt-titel {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  margin-bottom: 2px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-3); margin-bottom: 2px;
 }
-
-/* Aktions-Button im Panel (Speichern etc.) */
 .einstellungen-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 14px;
-  border: none;
-  border-radius: 10px;
-  background: var(--btn-bg);
-  color: var(--text-1);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background var(--t-schnell), color var(--t-schnell);
-  text-align: left;
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 12px 14px; border: none; border-radius: 10px;
+  background: var(--btn-bg); color: var(--text-1);
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  touch-action: manipulation; text-align: left;
+  transition: background var(--t-schnell);
 }
 .einstellungen-btn svg {
-  width: 18px; height: 18px;
-  flex-shrink: 0;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  width: 18px; height: 18px; flex-shrink: 0;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
 }
 .einstellungen-btn:hover { background: var(--btn-bg-hover); }
-.einstellungen-btn:active { transform: scale(0.98); }
-.einstellungen-btn--primary {
-  background: rgba(74,140,247,0.12);
-  color: var(--akzent);
-}
+.einstellungen-btn--primary { background: rgba(74,140,247,0.12); color: var(--akzent); }
 .einstellungen-btn--primary:hover { background: rgba(74,140,247,0.22); }
-[data-thema="hell"] .einstellungen-btn--primary {
-  background: rgba(26,93,200,0.10);
-  color: var(--akzent);
-}
+[data-thema="hell"] .einstellungen-btn--primary { background: rgba(26,93,200,0.10); }
 
-/* Zeile mit Label + Control */
 .einstellungen-zeile {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 40px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; min-height: 40px;
 }
-.einstellungen-zeile--spalte {
-  flex-direction: column;
-  align-items: flex-start;
-}
+.einstellungen-zeile--spalte { flex-direction: column; align-items: flex-start; }
 .einstellungen-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-1);
-  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 500; color: var(--text-1); flex-shrink: 0;
 }
 .einstellungen-zeile-icon {
-  width: 16px; height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  color: var(--text-2);
-  flex-shrink: 0;
+  width: 16px; height: 16px; fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+  color: var(--text-2); flex-shrink: 0;
 }
-
-.einstellungen-hinweis {
-  font-size: 13px;
-  color: var(--text-3);
-  line-height: 1.5;
-}
-
-.einstellungen-footer {
-  margin-top: auto;
-  padding: 16px 20px;
-  border-top: 1px solid var(--panel-rand);
-}
-.einstellungen-version {
-  font-size: 11px;
-  color: var(--text-3);
-}
+.einstellungen-hinweis { font-size: 13px; color: var(--text-3); line-height: 1.5; }
+.einstellungen-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--panel-rand); }
+.einstellungen-version { font-size: 11px; color: var(--text-3); }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   12. TOGGLE-BUTTON (Hell/Dunkel-Modus)
+   14. TOGGLE & SEGMENT-CONTROL
 ════════════════════════════════════════════════════════════════════ */
 .toggle-btn {
-  position: relative;
-  width: 46px;
-  height: 26px;
-  border: none;
-  border-radius: 13px;
-  background: var(--toggle-off);
-  cursor: pointer;
-  flex-shrink: 0;
-  touch-action: manipulation;
-  transition: background var(--t-normal);
-  padding: 0;
+  position: relative; width: 46px; height: 26px; border: none;
+  border-radius: 13px; background: var(--toggle-off); cursor: pointer;
+  flex-shrink: 0; touch-action: manipulation;
+  transition: background var(--t-normal); padding: 0;
 }
 .toggle-btn[aria-checked="true"] { background: var(--toggle-on); }
-
 .toggle-btn__schieber {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
   transition: transform var(--t-normal);
 }
-.toggle-btn[aria-checked="true"] .toggle-btn__schieber {
-  transform: translateX(20px);
-}
+.toggle-btn[aria-checked="true"] .toggle-btn__schieber { transform: translateX(20px); }
 
-
-/* ═══════════════════════════════════════════════════════════════════
-   13. SEGMENT-CONTROL (Links / Rechts)
-════════════════════════════════════════════════════════════════════ */
 .segment-control {
-  display: flex;
-  border-radius: 8px;
-  overflow: hidden;
+  display: flex; border-radius: 8px; overflow: hidden;
   border: 1px solid var(--panel-rand);
 }
 .segment-btn {
-  padding: 6px 12px;
-  border: none;
-  background: transparent;
-  color: var(--text-2);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  touch-action: manipulation;
+  padding: 6px 12px; border: none; background: transparent;
+  color: var(--text-2); font-size: 13px; font-weight: 500;
+  cursor: pointer; touch-action: manipulation;
   transition: background var(--t-schnell), color var(--t-schnell);
 }
-.segment-btn + .segment-btn {
-  border-left: 1px solid var(--panel-rand);
-}
+.segment-btn + .segment-btn { border-left: 1px solid var(--panel-rand); }
 .segment-btn:hover  { background: var(--btn-bg-hover); color: var(--text-1); }
 .segment-btn.aktiv  { background: var(--btn-bg-aktiv); color: var(--btn-aktiv-farbe); }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   14. EINSTELLUNGS-SLIDER
+   15. SLIDER & COLOR PICKER
 ════════════════════════════════════════════════════════════════════ */
 .slider-zeile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
+  display: flex; align-items: center; gap: 10px; width: 100%;
 }
 .einstellungen-slider {
-  flex: 1;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--slider-track);
-  outline: none;
-  cursor: pointer;
+  flex: 1; -webkit-appearance: none; appearance: none;
+  height: 4px; border-radius: 2px;
+  background: var(--slider-track); outline: none; cursor: pointer;
 }
 .einstellungen-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--slider-thumb);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-  cursor: pointer;
+  -webkit-appearance: none; width: 20px; height: 20px;
+  border-radius: 50%; background: var(--slider-thumb);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3); cursor: pointer;
 }
 .einstellungen-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--slider-thumb);
-  border: none;
-  cursor: pointer;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--slider-thumb); border: none; cursor: pointer;
 }
 .slider-wert {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-2);
-  min-width: 46px;
-  text-align: right;
+  font-size: 12px; font-weight: 600; color: var(--text-2);
+  min-width: 46px; text-align: right;
+}
+.einstellungen-color-picker {
+  width: 36px; height: 28px;
+  border: 1px solid var(--panel-rand); border-radius: 6px;
+  padding: 2px; background: transparent; cursor: pointer;
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   15. SPOTLIGHT-OVERLAY & ZUGPUNKTE
+   16. SPOTLIGHT
 ════════════════════════════════════════════════════════════════════ */
-.spotlight-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 500;
-  pointer-events: all;
-}
-.spotlight-maske {
-  position: absolute;
-  inset: 0;
-  background: var(--spotlight-dunkel);
-}
+.spotlight-overlay { position: fixed; inset: 0; z-index: 500; pointer-events: all; }
+.spotlight-maske   { position: absolute; inset: 0; background: var(--spotlight-dunkel); }
 .spotlight-fenster {
-  position: absolute;
-  background: transparent;
-  cursor: move;
-  overflow: visible;
-  box-shadow: 0 0 0 1.5px rgba(255,255,255,0.22);
+  position: absolute; background: transparent; cursor: move;
+  overflow: visible; box-shadow: 0 0 0 1.5px rgba(255,255,255,0.22);
 }
 .spotlight-fenster::after {
-  content: '';
-  position: absolute;
-  inset: 0;
+  content: ''; position: absolute; inset: 0;
   border: 1.5px dashed rgba(255,255,255,0.2);
-  border-radius: inherit;
-  pointer-events: none;
+  border-radius: inherit; pointer-events: none;
 }
 .spotlight-fenster.oval { border-radius: 50%; }
 
-/* Zugpunkte */
 .spot-griff {
   position: absolute;
-  width: var(--griff-groesse);
-  height: var(--griff-groesse);
-  background: var(--griff-farbe);
-  border: 2px solid var(--griff-rand);
-  border-radius: var(--griff-radius);
-  touch-action: none;
-  z-index: 10;
+  width: var(--griff-groesse); height: var(--griff-groesse);
+  background: var(--griff-farbe); border: 2px solid var(--griff-rand);
+  border-radius: var(--griff-radius); touch-action: none; z-index: 10;
   box-shadow: 0 1px 4px rgba(0,0,0,0.4);
   transition: transform 80ms ease;
 }
 .spot-griff:active { transform: scale(1.25) !important; }
 
-.spot-griff[data-griff="nw"] { top:0; left:0;   transform:translate(-50%,-50%); cursor:nw-resize; }
+.spot-griff[data-griff="nw"] { top:0; left:0;    transform:translate(-50%,-50%); cursor:nw-resize; }
 .spot-griff[data-griff="n"]  { top:0; left:50%;  transform:translate(-50%,-50%); cursor:n-resize;  }
 .spot-griff[data-griff="ne"] { top:0; right:0;   transform:translate(50%,-50%);  cursor:ne-resize; }
 .spot-griff[data-griff="e"]  { top:50%; right:0; transform:translate(50%,-50%);  cursor:e-resize;  }
@@ -856,89 +841,55 @@ body.scroll-modus .zeichen-canvas {
 
 .spot-griff[data-griff="nw"]:hover { transform:translate(-50%,-50%) scale(1.3); }
 .spot-griff[data-griff="n"]:hover  { transform:translate(-50%,-50%) scale(1.3); }
-.spot-griff[data-griff="ne"]:hover { transform:translate(50%,-50%) scale(1.3);  }
-.spot-griff[data-griff="e"]:hover  { transform:translate(50%,-50%) scale(1.3);  }
-.spot-griff[data-griff="se"]:hover { transform:translate(50%,50%) scale(1.3);   }
-.spot-griff[data-griff="s"]:hover  { transform:translate(-50%,50%) scale(1.3);  }
-.spot-griff[data-griff="sw"]:hover { transform:translate(-50%,50%) scale(1.3);  }
+.spot-griff[data-griff="ne"]:hover { transform:translate(50%,-50%)  scale(1.3); }
+.spot-griff[data-griff="e"]:hover  { transform:translate(50%,-50%)  scale(1.3); }
+.spot-griff[data-griff="se"]:hover { transform:translate(50%,50%)   scale(1.3); }
+.spot-griff[data-griff="s"]:hover  { transform:translate(-50%,50%)  scale(1.3); }
+.spot-griff[data-griff="sw"]:hover { transform:translate(-50%,50%)  scale(1.3); }
 .spot-griff[data-griff="w"]:hover  { transform:translate(-50%,-50%) scale(1.3); }
 
 .spotlight-toolbar {
-  position: fixed;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 6px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-rand);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-radius: 12px;
-  padding: 7px 10px;
-  z-index: 501;
-  touch-action: manipulation;
+  position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 6px;
+  background: var(--panel-bg); border: 1px solid var(--panel-rand);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-radius: 12px; padding: 7px 10px; z-index: 501; touch-action: manipulation;
 }
 .spotlight-form-btn {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-2);
-  border-radius: 8px;
-  padding: 5px 13px;
-  font-size: 15px;
-  cursor: pointer;
-  min-height: 34px;
-  touch-action: manipulation;
+  background: transparent; border: 1px solid transparent;
+  color: var(--text-2); border-radius: 8px; padding: 5px 13px;
+  font-size: 15px; cursor: pointer; min-height: 34px; touch-action: manipulation;
   transition: background var(--t-schnell), color var(--t-schnell);
 }
 .spotlight-form-btn:hover { background: var(--btn-bg-hover); color: var(--text-1); }
 .spotlight-form-btn.aktiv {
-  background: var(--btn-bg-aktiv);
-  color: var(--btn-aktiv-farbe);
+  background: var(--btn-bg-aktiv); color: var(--btn-aktiv-farbe);
   border-color: rgba(74,140,247,0.3);
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   16. LASER-CANVAS
-   Separater fixierter Canvas über dem PDF für den Laser-Punkt.
-   Liegt nicht im Zoom-Wrapper → kein Drift durch Zoom-Transform.
-   Position und Größe werden per JS auf die aktive Seite ausgerichtet.
+   17. LASER-CANVAS
 ════════════════════════════════════════════════════════════════════ */
 .laser-canvas {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 450;
-  pointer-events: none;
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  z-index: 450; pointer-events: none;
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   17. TOAST
+   18. TOAST & LADE-INDIKATOR
 ════════════════════════════════════════════════════════════════════ */
 .toast {
-  position: fixed;
-  bottom: 76px;
-  left: 50%;
+  position: fixed; bottom: 76px; left: 50%;
   transform: translateX(-50%) translateY(16px);
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-rand);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-radius: 12px;
-  color: var(--text-1);
-  font-size: 13px;
-  font-weight: 500;
-  padding: 10px 18px;
-  z-index: 1000;
-  pointer-events: none;
-  white-space: nowrap;
-  opacity: 0;
-  max-width: 75vw;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  background: var(--panel-bg); border: 1px solid var(--panel-rand);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-radius: 12px; color: var(--text-1); font-size: 13px; font-weight: 500;
+  padding: 10px 18px; z-index: 1000; pointer-events: none;
+  white-space: nowrap; opacity: 0; max-width: 75vw;
+  overflow: hidden; text-overflow: ellipsis;
   transition: opacity 200ms ease, transform 200ms ease;
 }
 .toast.sichtbar { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -946,27 +897,16 @@ body.scroll-modus .zeichen-canvas {
 .toast.fehler   { border-color: rgba(224,32,32,0.6); }
 .toast.info     { border-color: var(--akzent); }
 
-
-/* ═══════════════════════════════════════════════════════════════════
-   18. LADE-INDIKATOR
-════════════════════════════════════════════════════════════════════ */
 .lade-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-  background: rgba(8,10,18,0.80);
-  backdrop-filter: blur(6px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(8,10,18,0.80); backdrop-filter: blur(6px);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
 }
 .lade-spinner {
   width: 46px; height: 46px;
   border: 3px solid rgba(74,140,247,0.2);
-  border-top-color: var(--akzent);
-  border-radius: 50%;
+  border-top-color: var(--akzent); border-radius: 50%;
   animation: drehen 0.75s linear infinite;
 }
 .lade-text { font-size: 13px; color: var(--text-2); font-weight: 500; }
@@ -975,52 +915,27 @@ body.scroll-modus .zeichen-canvas {
 /* ═══════════════════════════════════════════════════════════════════
    19. ANIMATIONEN
 ════════════════════════════════════════════════════════════════════ */
-@keyframes drehen   { to { transform: rotate(360deg); } }
-@keyframes schweben {
-  0%,100% { transform: translateY(0); }
-  50%     { transform: translateY(-9px); }
-}
-@keyframes backdrop-ein {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes panel-ein-rechts {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
-}
-@keyframes panel-ein-links {
-  from { transform: translateX(-100%); }
-  to   { transform: translateX(0); }
-}
+@keyframes drehen    { to { transform: rotate(360deg); } }
+@keyframes schweben  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+@keyframes backdrop-ein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes panel-ein-rechts { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes panel-ein-links  { from { transform: translateX(-100%); } to { transform: translateX(0); } }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   20. BARRIEREFREIHEIT
+   20. BARRIEREFREIHEIT & RESPONSIVE
 ════════════════════════════════════════════════════════════════════ */
 :focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
-
-
-/* ═══════════════════════════════════════════════════════════════════
-   21. RESPONSIVE
-════════════════════════════════════════════════════════════════════ */
 @media (max-height: 480px) {
   :root {
-    --sidebar-breite: 50px;
-    --btn-groesse:    38px;
-    --btn-icon:       16px;
-    --dot-groesse:    20px;
-    --gruppe-pad:     3px;
-    --gruppe-gap:     2px;
-    --griff-groesse:  18px;
-    --panel-breite:   260px;
+    --sidebar-breite: 50px; --btn-groesse: 38px; --btn-icon: 16px;
+    --dot-groesse: 20px; --gruppe-pad: 3px; --gruppe-gap: 2px;
+    --griff-groesse: 18px; --panel-breite: 260px; --notiz-breite: 280px;
   }
-  .btn-label    { display: none; }
+  .btn-label { display: none; }
   .sidebar-logo { display: none; }
   .zoom-steuerung { bottom: 8px; }
 }
