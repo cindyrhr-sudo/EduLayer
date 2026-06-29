@@ -1096,318 +1096,194 @@ function seiteLeeren() {
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   14. GEODREIECK
-   Realistisches deutsches Schuldreieck:
-   - 28cm Grundlinie (Hypotenuse oben, Basis unten)
-   - Winkelhalbkreis an der Spitze (0°–90° Innenwinkel)
-   - cm-Skalen auf allen drei Seiten
-   - 5mm-Hilfslinien parallel zur Basis
-   - Gesamte Fläche greifbar (kein separater Move-Griff)
-   - Dreh-Griff an der Spitze
+   14. GEODREIECK LOGIK (Unterkanten-basiert für PNG)
 ════════════════════════════════════════════════════════════════════ */
+
+// Hilfsobjekt für den globalen Zustand (falls nicht in Z definiert)
+if (!window.Z) window.Z = {};
+Z.geodreieckAktiv = false;
+Z.geoPos = { x: 300, y: 400 }; // Startposition des Nullpunkts
+Z.geoWinkel = 0;
+Z.geoSkalierung = 1;
+Z.geoDrag = null;
+
+// Brücke zu deinen DOM-Elementen schlagen
+const D = {
+  geoWrapper: document.getElementById('geo-wrapper'),
+  geoSvg: document.getElementById('geo-svg'),
+  geoDrehGriff: document.getElementById('geo-rotator'),
+  geoFuehrung: document.getElementById('geo-fuehrung'),
+  btnGeodrei: document.getElementById('btn-geodreieck') // Passe die ID ggf. an dein Menü an
+};
 
 function geodreieckAn() {
   Z.geodreieckAktiv = true;
   D.geoWrapper.style.display = 'block';
   D.geoWrapper.setAttribute('aria-hidden', 'false');
-  D.btnGeodrei.classList.add('aktiv');
-  D.btnGeodrei.setAttribute('aria-pressed', 'true');
+  if(D.btnGeodrei) {
+    D.btnGeodrei.classList.add('aktiv');
+    D.btnGeodrei.setAttribute('aria-pressed', 'true');
+  }
   geodreieckSkalieren();
-  geodreieckZeichnen();
   geodreieckTransformAnwenden();
-  toast('Geodreieck – überall anfassen zum Verschieben, Dreh-Griff oben', 'info', 3000);
 }
 
 function geodreieckAus() {
   Z.geodreieckAktiv = false;
   D.geoWrapper.style.display = 'none';
   D.geoWrapper.setAttribute('aria-hidden', 'true');
-  D.btnGeodrei.classList.remove('aktiv');
-  D.btnGeodrei.setAttribute('aria-pressed', 'false');
-  D.geoFuehrung.setAttribute('display', 'none');
+  if(D.btnGeodrei) {
+    D.btnGeodrei.classList.remove('aktiv');
+    D.btnGeodrei.setAttribute('aria-pressed', 'false');
+  }
+  if(D.geoFuehrung) D.geoFuehrung.style.display = 'none';
 }
 
 function geodreieckUmschalten() { Z.geodreieckAktiv ? geodreieckAus() : geodreieckAn(); }
 
-/** Skalierung: SVG-Breite = GEO_CM_LAENGE × pxProCm × zoom */
 function geodreieckSkalieren() {
-  const pxProCm = Z.pxProCm[Z.aktiveSeite] || (KONFIGURATION.PDF_SCALE * 72 / 2.54);
-  const breite  = KONFIGURATION.GEO_CM_LAENGE * pxProCm * Z.zoom;
-  const hoehe   = breite * (KONFIGURATION.GEO_VIEWBOX_H / KONFIGURATION.GEO_VIEWBOX_B);
-  Z.geoSkalierung = breite / KONFIGURATION.GEO_VIEWBOX_B;
-  D.geoSvg.style.width  = `${breite}px`;
+  // Falls pxProCm bei dir existiert, sonst Standardwert nutzen
+  const pxProCm = (Z.pxProCm && Z.pxProCm[Z.aktiveSeite]) || 37.8; 
+  const zoom = Z.zoom || 1;
+  
+  // Das hochgeladene Dreieck zeigt 16cm Gesamtlänge (8 links, 8 rechts)
+  const cmLaenge = 16; 
+  const breite = cmLaenge * pxProCm * zoom;
+  const hoehe = breite * (280 / 560); // ViewBox-Verhältnis des PNGs
+  
+  Z.geoSkalierung = breite / 560;
+  D.geoSvg.style.width = `${breite}px`;
   D.geoSvg.style.height = `${hoehe}px`;
 }
 
 function geodreieckTransformAnwenden() {
-  D.geoWrapper.style.transform =
-    `translate(${Z.geoPos.x}px, ${Z.geoPos.y}px) rotate(${Z.geoWinkel}deg)`;
+  // Rotiert und verschiebt basierend auf dem Nullpunkt (Mitte der Unterkante)
+  D.geoWrapper.style.transform = `translate(${Z.geoPos.x}px, ${Z.geoPos.y}px) rotate(${Z.geoWinkel}deg)`;
 }
 
 /**
- * Realistisches Geodreieck-SVG zeichnen.
- * viewBox: 0 0 560 280 (28cm × 14cm, 1 Einheit = 0.5mm)
- *
- * Eckpunkte:
- * - Rechter Winkel unten links: (0, 280)
- * - Basis: horizontal von (0,280) nach (560,280)
- * - Senkrechte: vertikal von (0,0) nach (0,280)
- * - Hypotenuse: von (0,0) nach (560,280)
+ * Modernes Pointer-basiertes Event-Handling (behebt Maus- und Touch-Probleme)
  */
-function geodreieckZeichnen() {
-  const farbe   = KONFIGURATION.GEO_FARBE;
-  const f70     = farbe + 'b3';  // 70% Deckkraft
-  const f50     = farbe + '80';  // 50%
-  const f30     = farbe + '4d';  // 30%
-
-  // ── BASIS (unten, 28cm): von (0,280) nach (560,280) ─────────
-  let basisHtml = '';
-  for (let mm = 0; mm <= 280; mm++) {
-    const x     = mm * 2;
-    const isCm  = mm % 10 === 0;
-    const isHCm = mm % 5  === 0 && !isCm;
-    const len   = isCm ? 10 : isHCm ? 6 : 2.5;
-    const sw    = isCm ? '1.0' : isHCm ? '0.7' : '0.5';
-    basisHtml  += `<line x1="${x}" y1="280" x2="${x}" y2="${280-len}"
-      stroke="${f70}" stroke-width="${sw}"/>`;
-    if (isCm && mm > 0 && mm < 280) {
-      basisHtml += `<text x="${x}" y="${280-13}" text-anchor="middle"
-        class="geo-zahl" fill="${farbe}">${mm/10}</text>`;
-    }
-  }
-  // Nullpunkt
-  basisHtml += `<text x="3" y="267" class="geo-zahl" fill="${farbe}">0</text>`;
-  D.geoBasis.innerHTML = basisHtml;
-
-  // ── SENKRECHTE (links, 14cm): von (0,0) nach (0,280) ────────
-  let senkrechtHtml = '';
-  for (let mm = 0; mm <= 140; mm++) {
-    const y     = 280 - mm * 2;
-    const isCm  = mm % 10 === 0;
-    const isHCm = mm % 5  === 0 && !isCm;
-    const len   = isCm ? 10 : isHCm ? 6 : 2.5;
-    const sw    = isCm ? '1.0' : isHCm ? '0.7' : '0.5';
-    senkrechtHtml += `<line x1="0" y1="${y}" x2="${len}" y2="${y}"
-      stroke="${f70}" stroke-width="${sw}"/>`;
-    if (isCm && mm > 0) {
-      senkrechtHtml += `<text x="${len+3}" y="${y+2}" class="geo-zahl"
-        fill="${farbe}">${mm/10}</text>`;
-    }
-  }
-  D.geoSenkrechte.innerHTML = senkrechtHtml;
-
-  // ── HYPOTENUSE-SKALA: von (0,0) nach (560,280) ──────────────
-  const hypLen = Math.hypot(560, 280);   // ≈ 625.7
-  const hnx    = 560 / hypLen, hny = 280 / hypLen;  // Einheitsvektor
-  const hnpx   = -hny, hnpy = hnx;                  // Senkrecht (nach innen)
-
-  let hypHtml = '';
-  const mmGesamt = Math.floor(hypLen / 2); // mm entlang Hyp.
-  for (let mm = 0; mm <= mmGesamt; mm++) {
-    const t    = mm * 2;
-    const hx   = hnx * t, hy = hny * t;
-    const isCm  = mm % 10 === 0;
-    const isHCm = mm % 5  === 0 && !isCm;
-    const len   = isCm ? 8 : isHCm ? 5 : 2;
-    const sw    = isCm ? '0.9' : '0.5';
-    hypHtml += `<line
-      x1="${hx.toFixed(1)}" y1="${hy.toFixed(1)}"
-      x2="${(hx-hnpx*len).toFixed(1)}" y2="${(hy-hnpy*len).toFixed(1)}"
-      stroke="${f50}" stroke-width="${sw}"/>`;
-    if (isCm && mm > 0) {
-      const tx = hx - hnpx*(len+4);
-      const ty = hy - hnpy*(len+4);
-      const rot = Math.atan2(hny,hnx)*180/Math.PI;
-      hypHtml += `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}"
-        text-anchor="middle" dominant-baseline="middle"
-        class="geo-zahl geo-zahl--klein" fill="${f70}"
-        transform="rotate(${rot.toFixed(1)},${tx.toFixed(1)},${ty.toFixed(1)})"
-        >${mm/10}</text>`;
-    }
-  }
-  D.geoGrundlinie.innerHTML = hypHtml;
-
-  // ── PARALLELE HILFSLINIEN (horizontal, alle 5mm = 10 SVG) ───
-  let hilfsHtml = '';
-  for (let mm = 5; mm < 140; mm += 5) {
-    const y   = 280 - mm * 2;
-    const xMax = y * 2;
-    if (xMax < 4) continue;
-    const isCm = mm % 10 === 0;
-    hilfsHtml += `<line x1="2" y1="${y}" x2="${xMax.toFixed(0)}" y2="${y}"
-      stroke="${isCm ? f30 : f30}" stroke-width="${isCm ? '0.7' : '0.4'}"
-      stroke-dasharray="${isCm ? 'none' : '3,3'}"/>`;
-    if (isCm) {
-      hilfsHtml += `<text x="${xMax-6}" y="${y-2}"
-        text-anchor="end" class="geo-zahl geo-zahl--klein" fill="${f50}"
-        >${mm/10}</text>`;
-    }
-  }
-  D.geoHilfslinien.innerHTML = hilfsHtml;
-
-  // ── WINKELKREIS an der Spitze (0,0) ─────────────────────────
-  const bogR = 40;
-  let winkelHtml = '';
-  winkelHtml += `<path d="M ${bogR} 0 A ${bogR} ${bogR} 0 0 1 0 ${bogR}"
-    fill="none" stroke="${f50}" stroke-width="0.8"/>`;
-  for (let grad = 5; grad < 90; grad += 5) {
-    const rad = grad * Math.PI / 180;
-    const ix  = bogR * Math.sin(rad);    
-    const iy  = bogR * Math.cos(rad);
-    const len = grad % 10 === 0 ? 6 : 3;
-    const rix = (bogR+len) * Math.sin(rad);
-    const riy = (bogR+len) * Math.cos(rad);
-    winkelHtml += `<line x1="${ix.toFixed(1)}" y1="${iy.toFixed(1)}"
-      x2="${rix.toFixed(1)}" y2="${riy.toFixed(1)}"
-      stroke="${f70}" stroke-width="${grad%10===0?'0.9':'0.6'}"/>`;
-    if (grad % 10 === 0) {
-      const tx = (bogR+len+5)*Math.sin(rad);
-      const ty = (bogR+len+5)*Math.cos(rad);
-      winkelHtml += `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}"
-        text-anchor="middle" dominant-baseline="middle"
-        class="geo-zahl geo-zahl--klein" fill="${f70}">${grad}°</text>`;
-    }
-  }
-  winkelHtml += `<polyline points="10,280 10,270 0,270"
-    fill="none" stroke="${farbe}" stroke-width="1.0"/>`;
-  winkelHtml += `<text x="540" y="268" text-anchor="end"
-    class="geo-zahl geo-zahl--klein" fill="${f70}">27°</text>`;
-  winkelHtml += `<text x="12" y="14" text-anchor="start"
-    class="geo-zahl geo-zahl--klein" fill="${f70}">63°</text>`;
-
-  D.geoWinkelkreis.innerHTML = winkelHtml;
-}
-
-/**
- * Snap: Gibt Canvas-Koordinaten zurück wenn Stift nahe einer Kante.
- */
-function geodreieckSnap(e, canvas) {
-  if (!Z.geodreieckAktiv) return null;
-  const client = clientKoord(e);
-  const kanten = geodreieckKantenClient();
-  const snapPx = KONFIGURATION.GEO_SNAP_PX;
-  let best = null, minDist = Infinity;
-
-  for (const k of kanten) {
-    const proj = punktAufLinie(client, k.p1, k.p2);
-    const dist = Math.hypot(client.x-proj.x, client.y-proj.y);
-    if (dist < snapPx && dist < minDist) { minDist = dist; best = proj; }
-  }
-
-  if (best) {
-    D.geoFuehrung.setAttribute('display', 'inline');
-    const rect = canvas.getBoundingClientRect();
-    const skalX = canvas.width/rect.width, skalY = canvas.height/rect.height;
-    return { x: (best.x-rect.left)*skalX, y: (best.y-rect.top)*skalY };
-  }
-  D.geoFuehrung.setAttribute('display', 'none');
-  return null;
-}
-
-/** Geodreieck-Kanten in Client-Koordinaten berechnen. */
-function geodreieckKantenClient() {
-  const rect   = D.geoWrapper.getBoundingClientRect();
-  const sk     = Z.geoSkalierung;
-  const winRad = Z.geoWinkel * Math.PI / 180;
-  const cos    = Math.cos(winRad), sin = Math.sin(winRad);
-  const eckenSvg = [
-    { x: 0,   y: 0    },
-    { x: 560, y: 280 },
-    { x: 0,   y: 280 },
-  ];
-  const originX = rect.left, originY = rect.top;
-  const punkte = eckenSvg.map(e => ({
-    x: e.x*sk*cos - e.y*sk*sin + originX,
-    y: e.x*sk*sin + e.y*sk*cos + originY,
-  }));
-  return [
-    { p1: punkte[0], p2: punkte[1], name: 'hypotenuse' },
-    { p1: punkte[1], p2: punkte[2], name: 'basis'        },
-    { p1: punkte[2], p2: punkte[0], name: 'senkrechte'  },
-  ];
-}
-
-/** Geodreieck-Interaktion initialisieren. */
 function geodreieckInit() {
   const svg = D.geoSvg;
 
-  // ── SVG-Fläche: Verschieben ─────────────────────────────────
-  svg.addEventListener('touchstart', e => {
+  // 1. Überall anfassen zum Verschieben
+  svg.addEventListener('pointerdown', (e) => {
     if (!Z.geodreieckAktiv) return;
     if (e.target === D.geoDrehGriff || D.geoDrehGriff.contains(e.target)) return;
-    e.preventDefault(); e.stopPropagation();
-    const t = e.touches[0];
-    Z.geoDrag = {
-      art: 'move', startX: t.clientX, startY: t.clientY,
-      startPos: { ...Z.geoPos },
-    };
-  }, { passive: false });
-
-  svg.addEventListener('mousedown', e => {
-    if (!Z.geodreieckAktiv) return;
-    if (e.target === D.geoDrehGriff || D.geoDrehGriff.contains(e.target)) return;
-    e.preventDefault(); e.stopPropagation();
-    Z.geoDrag = {
-      art: 'move', startX: e.clientX, startY: e.clientY,
-      startPos: { ...Z.geoPos },
-    };
-  });
-
-  // ── Dreh-Griff ──────────────────────────────────────────────
-  D.geoDrehGriff.addEventListener('touchstart', e => {
-    if (!Z.geodreieckAktiv) return;
-    e.preventDefault(); e.stopPropagation();
-    const t    = e.touches[0];
-    const rect = D.geoWrapper.getBoundingClientRect();
-    const svgH   = parseFloat(D.geoSvg.style.height) || 210;
-    const pivotX = rect.left;
-    const pivotY = rect.top + svgH;
-    Z.geoDrag = {
-      art: 'rotate', pivotX, pivotY,
-      startWinkel: winkelZwischen(pivotX, pivotY, t.clientX, t.clientY) - Z.geoWinkel,
-    };
-  }, { passive: false });
-
-  D.geoDrehGriff.addEventListener('mousedown', e => {
-    if (!Z.geodreieckAktiv) return;
-    e.preventDefault(); e.stopPropagation();
-    const rect = D.geoWrapper.getBoundingClientRect();
-    const svgH = parseFloat(D.geoSvg.style.height) || 210;
-    const pivotX = rect.left, pivotY = rect.top + svgH;
-    Z.geoDrag = {
-      art: 'rotate', pivotX, pivotY,
-      startWinkel: winkelZwischen(pivotX, pivotY, e.clientX, e.clientY) - Z.geoWinkel,
-    };
-  });
-
-  // ── Globale Move/End ────────────────────────────────────────
-  document.addEventListener('touchmove', e => {
-    if (!Z.geoDrag) return;
+    
     e.preventDefault();
-    _geoBewegen(e.touches[0].clientX, e.touches[0].clientY);
-  }, { passive: false });
+    e.stopPropagation();
+    svg.setPointerCapture(e.pointerId);
 
-  document.addEventListener('mousemove', e => {
-    if (!Z.geoDrag) return;
-    _geoBewegen(e.clientX, e.clientY);
+    Z.geoDrag = {
+      art: 'move',
+      startX: e.clientX,
+      startY: e.clientY,
+      startPos: { ...Z.geoPos }
+    };
   });
 
-  document.addEventListener('touchend',  () => { Z.geoDrag = null; });
-  document.addEventListener('mouseup',   () => { Z.geoDrag = null; });
+  svg.addEventListener('pointermove', (e) => {
+    if (!Z.geoDrag || Z.geoDrag.art !== 'move') return;
+    const dx = e.clientX - Z.geoDrag.startX;
+    const dy = e.clientY - Z.geoDrag.startY;
+    
+    Z.geoPos = {
+      x: Z.geoDrag.startPos.x + dx,
+      y: Z.geoDrag.startPos.y + dy
+    };
+    geodreieckTransformAnwenden();
+  });
+
+  // 2. Drehen am Griff oben
+  D.geoDrehGriff.addEventListener('pointerdown', (e) => {
+    if (!Z.geodreieckAktiv) return;
+    e.preventDefault();
+    e.stopPropagation();
+    D.geoDrehGriff.setPointerCapture(e.pointerId);
+
+    Z.geoDrag = {
+      art: 'rotate',
+      // Der Pivot-Drehpunkt ist exakt die aktuelle Position des Lineal-Nullpunkts auf dem Bildschirm
+      pivotX: Z.geoPos.x,
+      pivotY: Z.geoPos.y,
+      // Mathematischer Startwinkel-Offset ermitteln
+      startWinkel: Math.atan2(e.clientY - Z.geoPos.y, e.clientX - Z.geoPos.x) * (180 / Math.PI) - Z.geoWinkel
+    };
+  });
+
+  D.geoDrehGriff.addEventListener('pointermove', (e) => {
+    if (!Z.geoDrag || Z.geoDrag.art !== 'rotate') return;
+    
+    const aktuellerWinkelRad = Math.atan2(e.clientY - Z.geoDrag.pivotY, e.clientX - Z.geoDrag.pivotX);
+    const aktuellerWinkelDeg = aktuellerWinkelRad * (180 / Math.PI);
+    
+    // Da der Griff oben bei -90° liegt, korrigieren wir die Drehung für intuitive Bewegung
+    Z.geoWinkel = Math.round(aktuellerWinkelDeg - Z.geoDrag.startWinkel);
+    geodreieckTransformAnwenden();
+  });
+
+  // 3. Interaktionen sauber beenden
+  const pointerUpHandler = (e) => {
+    if (Z.geoDrag) {
+      Z.geoDrag = null;
+    }
+  };
+  
+  svg.addEventListener('pointerup', pointerUpHandler);
+  D.geoDrehGriff.addEventListener('pointerup', pointerUpHandler);
 }
 
-function _geoBewegen(cx, cy) {
-  if (!Z.geoDrag) return;
-  if (Z.geoDrag.art === 'move') {
-    const dx = cx - Z.geoDrag.startX, dy = cy - Z.geoDrag.startY;
-    Z.geoPos = { x: Z.geoDrag.startPos.x+dx, y: Z.geoDrag.startPos.y+dy };
-  } else if (Z.geoDrag.art === 'rotate') {
-    Z.geoWinkel = Math.round(
-      winkelZwischen(Z.geoDrag.pivotX, Z.geoDrag.pivotY, cx, cy) - Z.geoDrag.startWinkel
-    );
+/**
+ * Kanten-Snapping Logik für die Unterkante des neuen Klipart-Dreiecks
+ */
+function geodreieckSnap(inputX, inputY, canvas) {
+  if (!Z.geodreieckAktiv) return null;
+
+  const rad = (Z.geoWinkel * Math.PI) / 180;
+  // Richtungsvektor entlang der Unterkante (Hypotenuse)
+  const dirX = Math.cos(rad);
+  const dirY = Math.sin(rad);
+
+  // Vektor vom Nullpunkt des Dreiecks zum Stift/Mauspunkt
+  const vX = inputX - Z.geoPos.x;
+  const vY = inputY - Z.geoPos.y;
+
+  // Projektion via Skalarprodukt
+  const t = vX * dirX + vY * dirY;
+
+  // Punkt auf der unendlichen Kanten-Geraden berechnen
+  const projX = Z.geoPos.x + t * dirX;
+  const projY = Z.geoPos.y + t * dirY;
+
+  // Abstand zur Kante messen
+  const abstand = Math.hypot(inputX - projX, inputY - projY);
+  
+  // Halbe Breite des Dreiecks auf dem Bildschirm im aktuellen Zoom bestimmen
+  const maxKantenReichweite = 280 * Z.geoSkalierung; 
+
+  // Fangbereich: Wenn näher als 24px an der Kante und innerhalb der physikalischen Lineal-Länge
+  if (abstand < 24 && Math.abs(t) <= maxKantenReichweite) {
+    if (D.geoFuehrung) D.geoFuehrung.style.display = 'inline';
+    
+    const rect = canvas.getBoundingClientRect();
+    const skalX = canvas.width / rect.width;
+    const skalY = canvas.height / rect.height;
+    
+    // Transformiert zurück in lokale Canvas-Koordinaten fürs Zeichnen
+    return { 
+      x: (projX - rect.left) * skalX, 
+      y: (projY - rect.top) * skalY 
+    };
   }
-  geodreieckTransformAnwenden();
+
+  if (D.geoFuehrung) D.geoFuehrung.style.display = 'none';
+  return null;
 }
+
+// Nach dem Laden einmalig ausführen, um Listener zu binden
+document.addEventListener('DOMContentLoaded', geodreieckInit);
 
 /* ═══════════════════════════════════════════════════════════════════
    15. SPOTLIGHT
