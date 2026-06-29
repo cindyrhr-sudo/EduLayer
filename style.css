@@ -159,19 +159,20 @@ body {
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   4. SIDEBAR
+   4. SIDEBAR & FLYOUT-UNTERMENÜS
 ════════════════════════════════════════════════════════════════════ */
 .sidebar {
   width: var(--sidebar-breite); min-width: var(--sidebar-breite);
   height: 100%; background: var(--sidebar-bg);
   display: flex; flex-direction: column; align-items: center;
-  padding: 6px 0; overflow-y: auto; overflow-x: visible;
-  overscroll-behavior: none; scrollbar-width: none;
-  z-index: 100; flex-shrink: 0; touch-action: pan-y;
+  padding: 6px 0; 
+  /* FIX: Kein overflow-y: auto hier, damit Flyouts ausbrechen dürfen! */
+  overflow: visible; 
+  overscroll-behavior: none; 
+  z-index: 450; /* Sicher über dem Hauptbereich (300) und PDFs platziert */
+  flex-shrink: 0; touch-action: pan-y;
   transition: background var(--t-normal);
-  /* overflow-x: visible damit Flyouts rausgucken können */
 }
-.sidebar::-webkit-scrollbar { display: none; }
 
 [data-sidebar="right"] { flex-direction: row; }
 [data-sidebar="right"] .hauptbereich { order: 0; }
@@ -199,13 +200,77 @@ body {
   padding: var(--gruppe-pad) 0;
   border-bottom: 1px solid var(--sidebar-rand);
   flex-shrink: 0;
-  position: relative; /* für Flyout-Positionierung */
+  position: relative; /* Anker für die absolute Positionierung der Flyouts */
 }
 .werkzeug-gruppe:last-of-type { border-bottom: none; }
 .werkzeug-gruppe--unten {
   margin-top: auto;
   border-top: 1px solid var(--sidebar-rand); border-bottom: none;
   padding-bottom: 10px;
+}
+
+/* ─── FLYOUT POSITIONIERUNG & STRUKTUR ─── */
+
+.untermenu-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.flyout {
+  position: absolute;
+  top: 0;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--sidebar-rand);
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  z-index: 500; /* Liegt über der Sidebar selbst */
+  pointer-events: all;
+}
+
+/* Dynamische Ausrichtung je nachdem, wo die Sidebar andockt */
+[data-sidebar="right"] .flyout {
+  /* Wenn Sidebar rechts: Flyout klappt nach LINKS aus */
+  right: calc(var(--sidebar-breite) - 4px);
+}
+
+[data-sidebar="left"] .flyout {
+  /* Wenn Sidebar links: Flyout klappt nach RECHTS aus */
+  left: calc(var(--sidebar-breite) - 4px);
+}
+
+/* Flyout Buttons Design */
+.flyout-btn {
+  width: var(--btn-groesse);
+  height: var(--btn-groesse);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  gap: 2px;
+  transition: background 0.15s ease;
+}
+
+.flyout-btn:hover,
+.flyout-btn[aria-pressed="true"] {
+  background: var(--btn-aktiv-bg, rgba(255,255,255,0.1));
+}
+
+.untermenu-indikator {
+  font-size: 9px;
+  opacity: 0.6;
+  margin-left: 2px;
 }
 
 
