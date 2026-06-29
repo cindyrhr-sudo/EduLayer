@@ -823,9 +823,14 @@ function strichStarten(e, canvas) {
   e.preventDefault();
   Z.zeichnet = true;
 
+  // 1. Hole Standard-Mauskoordinaten
   let p = koordinaten(e, canvas);
+  
+  // 2. Falls das Geodreieck aktiv ist, nutze die korrigierten Client-Koordinaten für den Snap
   if (Z.geodreieckAktiv) {
-    const snap = geodreieckSnap(e, canvas);
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const snap = geodreieckSnap(clientX, clientY, canvas);
     if (snap) p = snap;
   }
   Z.letzterPunkt = p;
@@ -874,9 +879,14 @@ function strichBewegen(e, canvas) {
   if (!Z.zeichnet) return;
   e.preventDefault();
 
+  // 1. Hole Standard-Mauskoordinaten
   let p = koordinaten(e, canvas);
+  
+  // 2. Kanten-Snapping während der Bewegung anwenden
   if (Z.geodreieckAktiv) {
-    const snap = geodreieckSnap(e, canvas);
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const snap = geodreieckSnap(clientX, clientY, canvas);
     if (snap) p = snap;
   }
 
