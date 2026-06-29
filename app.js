@@ -363,15 +363,21 @@ function themaLaden() {
 
 /* ═══════════════════════════════════════════════════════════════════
    6. FLYOUT-UNTERMENÜS
-   Ein Tippen öffnet/schließt das Flyout.
+   Ein Tippen öffnet/schließt das Flyout via CSS-Klasse.
    Tippen auf einen Eintrag wählt ihn aus und schließt das Flyout.
    Tippen außerhalb schließt alle Flyouts.
 ════════════════════════════════════════════════════════════════════ */
 
 /** Alle offenen Flyouts schließen. */
 function flyoutsSchliessen() {
+  // Wir nutzen Klassenübergaben statt harter Style-Injections
+  D.flyoutStifte.classList.remove('offen');
+  D.flyoutFokus.classList.remove('offen');
+  
+  // Fallback, falls du die Sichtbarkeit im CSS noch über style.display absicherst:
   D.flyoutStifte.style.display = 'none';
   D.flyoutFokus.style.display  = 'none';
+  
   D.btnStiftAktiv.setAttribute('aria-expanded', 'false');
   D.btnFokusAktiv.setAttribute('aria-expanded', 'false');
   Z.offenesFlyout = null;
@@ -383,7 +389,8 @@ function stiftFlyoutUmschalten() {
     flyoutsSchliessen();
   } else {
     flyoutsSchliessen();
-    D.flyoutStifte.style.display = 'flex';
+    D.flyoutStifte.classList.add('offen');
+    D.flyoutStifte.style.display = 'flex'; // Sorgt für die korrekte Flex-Ausrichtung der Buttons
     D.btnStiftAktiv.setAttribute('aria-expanded', 'true');
     Z.offenesFlyout = 'stifte';
   }
@@ -395,7 +402,8 @@ function fokusFlyoutUmschalten() {
     flyoutsSchliessen();
   } else {
     flyoutsSchliessen();
-    D.flyoutFokus.style.display = 'flex';
+    D.flyoutFokus.classList.add('offen');
+    D.flyoutFokus.style.display = 'flex'; // Sorgt für die korrekte Flex-Ausrichtung der Buttons
     D.btnFokusAktiv.setAttribute('aria-expanded', 'true');
     Z.offenesFlyout = 'fokus';
   }
@@ -525,7 +533,6 @@ function fokusModusSetzen(modus) {
 function fokusModusAus() {
   fokusModusSetzen('aus');
 }
-
 
 /* ═══════════════════════════════════════════════════════════════════
    7. EINSTELLUNGSMENÜ
