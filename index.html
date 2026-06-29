@@ -366,41 +366,18 @@
     </div>
 
     <!-- 8: Geodreieck -->
-   <div class="geodreieck-wrapper" id="geo-wrapper" style="transform: translate(100px, 100px) rotate(0deg);">
-  <svg class="geodreieck-svg" id="geo-svg" viewBox="0 0 160 80" xmlns="http://www.w3.org/2000/svg">
-    <polygon points="0,80 160,80 80,0" class="geo-koerper geo-kontur" />
+  <div class="geodreieck-wrapper" id="geo-wrapper">
+  <svg class="geodreieck-svg" id="geo-svg" viewBox="0 0 560 280" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="0,280 560,280 280,0" fill="rgba(0,0,0,0)" style="pointer-events: all;" />
     
-    <line x1="10" y1="75" x2="150" y2="75" class="geo-linie geo-linie--duenn" />
-    <line x1="20" y1="70" x2="140" y2="70" class="geo-linie geo-linie--normal" />
-    <line x1="30" y1="65" x2="130" y2="65" class="geo-linie geo-linie--duenn" />
-    <line x1="40" y1="60" x2="120" y2="60" class="geo-linie geo-linie--stark" />
-    <line x1="50" y1="55" x2="110" y2="55" class="geo-linie geo-linie--duenn" />
-    <line x1="60" y1="50" x2="100" y2="50" class="geo-linie geo-linie--normal" />
+    <image href="geodreieck-1016726_1280.png" x="0" y="0" width="560" height="280" style="pointer-events: none;" />
     
-    <line x1="80" y1="0" x2="80" y2="80" class="geo-linie geo-linie--normal" />
-
-    <text x="80" y="77" class="geo-zahl">0</text>
-    
-    <line x1="70" y1="75" x2="70" y2="80" class="geo-linie geo-linie--normal" /><text x="70" y="72" class="geo-zahl geo-zahl--klein">1</text>
-    <line x1="60" y1="75" x2="60" y2="80" class="geo-linie geo-linie--normal" /><text x="60" y="72" class="geo-zahl geo-zahl--klein">2</text>
-    <line x1="50" y1="75" x2="50" y2="80" class="geo-linie geo-linie--normal" /><text x="50" y="72" class="geo-zahl geo-zahl--klein">3</text>
-    <line x1="40" y1="75" x2="40" y2="80" class="geo-linie geo-linie--normal" /><text x="40" y="72" class="geo-zahl geo-zahl--klein">4</text>
-    <line x1="30" y1="75" x2="30" y2="80" class="geo-linie geo-linie--normal" /><text x="30" y="72" class="geo-zahl geo-zahl--klein">5</text>
-    <line x1="20" y1="75" x2="20" y2="80" class="geo-linie geo-linie--normal" /><text x="20" y="72" class="geo-zahl geo-zahl--klein">6</text>
-    <line x1="10" y1="75" x2="10" y2="80" class="geo-linie geo-linie--normal" /><text x="10" y="72" class="geo-zahl geo-zahl--klein">7</text>
-
-    <line x1="90" y1="75" x2="90" y2="80" class="geo-linie geo-linie--normal" /><text x="90" y="72" class="geo-zahl geo-zahl--klein">1</text>
-    <line x1="100" y1="75" x2="100" y2="80" class="geo-linie geo-linie--normal" /><text x="100" y="72" class="geo-zahl geo-zahl--klein">2</text>
-    <line x1="110" y1="75" x2="110" y2="80" class="geo-linie geo-linie--normal" /><text x="110" y="72" class="geo-zahl geo-zahl--klein">3</text>
-    <line x1="120" y1="75" x2="120" y2="80" class="geo-linie geo-linie--normal" /><text x="120" y="72" class="geo-zahl geo-zahl--klein">4</text>
-    <line x1="130" y1="75" x2="130" y2="80" class="geo-linie geo-linie--normal" /><text x="130" y="72" class="geo-zahl geo-zahl--klein">5</text>
-    <line x1="140" y1="75" x2="140" y2="80" class="geo-linie geo-linie--normal" /><text x="140" y="72" class="geo-zahl geo-zahl--klein">6</text>
-    <line x1="150" y1="75" x2="150" y2="80" class="geo-linie geo-linie--normal" /><text x="150" y="72" class="geo-zahl geo-zahl--klein">7</text>
+    <line id="geo-fuehrung" class="geo-fuehrungslinie" x1="0" y1="280" x2="560" y2="280" style="display: none;" />
   </svg>
 
   <div class="geo-dreh-griff" id="geo-rotator">
-    <svg viewBox="0 0 24 24">
-      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+    <svg viewBox="0 0 24 24" width="16" height="16">
+      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   </div>
 </div>
