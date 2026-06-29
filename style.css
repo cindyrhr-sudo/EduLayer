@@ -476,90 +476,66 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   12. GEODREIECK
-   Die GESAMTE SVG-Fläche ist greifbar (cursor: move).
-   Kein separater Move-Griff. Nur ein Dreh-Griff an der Spitze.
+   12. GEODREIECK (PNG-Basis mit Plexiglas-Transparenz)
 ════════════════════════════════════════════════════════════════════ */
 .geodreieck-wrapper {
   position: absolute;
-  top: 60px; left: 60px;
+  top: 100px;
+  left: 100px;
   z-index: 300;
-  transform-origin: 0 100%;   /* Drehpunkt = untere linke Ecke (0, 280) */
+  /* Der Drehpunkt liegt exakt in der Mitte der Unterkante (Nullpunkt: 50% X, 100% Y) */
+  transform-origin: 50% 100%;
   touch-action: none;
-  pointer-events: none;        /* Wrapper selbst: kein Pointer */
+  pointer-events: none;
 }
 
 .geodreieck-svg {
-  width: 420px; height: 210px;   /* Startwert, wird per JS überschrieben */
+  width: 560px; /* Wird via JS dynamisch anhand von cm/Zoom skaliert */
+  height: 280px;
   overflow: visible;
-  pointer-events: all;           /* GESAMTE FLÄCHE greifbar */
   cursor: move;
-  filter: drop-shadow(0 2px 10px rgba(0,0,0,0.4));
+  filter: drop-shadow(0 3px 12px rgba(0,0,0,0.3));
+  /* HIER WIRD ES DURCHSICHTIG: 0.75 bedeutet 75% Sichtbarkeit, PDF scheint durch */
+  opacity: 0.78; 
+  transition: opacity 0.2s ease;
 }
 
-/* Geodreieck-Körper (Kunststoff-Look) */
-.geo-koerper {
-  fill: var(--geo-fill);
-}
-.geo-kontur {
-  stroke: var(--geo-stroke);
-  stroke-width: 1.8;
+.geodreieck-svg:active {
+  /* Wird minimal transparenter, wenn man es verschiebt, für noch bessere Sicht */
+  opacity: 0.65;
 }
 
-/* Linien auf dem Geodreieck */
-.geo-linie {
-  stroke: var(--geo-stroke);
-  stroke-linecap: round;
-}
-.geo-linie--duenn { stroke-width: 0.7; }
-.geo-linie--normal { stroke-width: 1.0; }
-.geo-linie--stark { stroke-width: 1.4; }
-
-/* Beschriftungen */
-.geo-zahl {
-  font-family: var(--schrift);
-  fill: var(--geo-text);
-  font-size: 5.5px;
-  font-weight: 600;
-  dominant-baseline: middle;
-  text-anchor: middle;
-  pointer-events: none;
-  user-select: none;
-}
-.geo-zahl--klein { font-size: 4.5px; }
-.geo-zahl--mittel { font-size: 6px; }
-
-/* Aktive Führungslinie beim Snap */
-.geo-fuehrungslinie {
-  stroke: rgba(255,210,50,0.85);
-  stroke-width: 1.8;
-  stroke-dasharray: 8,4;
-  stroke-linecap: round;
-  pointer-events: none;
-}
-
-/* Dreh-Griff an der Spitze (0,0) */
+/* Der runde Dreh-Griff an der oberen Spitze */
 .geo-dreh-griff {
   position: absolute;
-  width: 32px; height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: var(--geo-griff-bg);
-  border: 1.5px solid var(--geo-stroke);
-  display: flex; align-items: center; justify-content: center;
+  background: #ffffff;
+  border: 2px solid #333333;
+  color: #333333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: grab;
   pointer-events: all;
   touch-action: none;
-  /* Zentriert den 32px-Griff exakt auf den SVG-Nullpunkt oben links */
-  top: -16px; left: -16px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-  transition: transform 80ms ease;
+  /* Platziert den Griff exakt über der 90°-Spitze (X: Mitte, Y: ganz oben) */
+  top: -17px;
+  left: calc(50% - 17px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  z-index: 310;
 }
-.geo-dreh-griff:active { cursor: grabbing; transform: scale(0.95); }
-.geo-dreh-griff svg {
-  width: 15px; height: 15px;
-  fill: none; stroke: var(--geo-stroke);
-  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
-  pointer-events: none;
+
+.geo-dreh-griff:active {
+  cursor: grabbing;
+  transform: scale(0.95);
+}
+
+.geo-fuehrungslinie {
+  stroke: #ff9800;
+  stroke-width: 2;
+  stroke-dasharray: 6,4;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
