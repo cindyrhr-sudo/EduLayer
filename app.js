@@ -1149,12 +1149,10 @@ function geodreieckTransformAnwenden() {
  * viewBox: 0 0 560 280 (28cm × 14cm, 1 Einheit = 0.5mm)
  *
  * Eckpunkte:
- *   A = (0, 0)   – Spitze oben links (90°-Winkel... Nein:)
- * Deutsches Geodreieck-Layout:
- *   - Rechter Winkel unten links: (0, 280)
- *   - Basis: horizontal von (0,280) nach (560,280)
- *   - Senkrechte: vertikal von (0,0) nach (0,280)
- *   - Hypotenuse: von (0,0) nach (560,280)
+ * - Rechter Winkel unten links: (0, 280)
+ * - Basis: horizontal von (0,280) nach (560,280)
+ * - Senkrechte: vertikal von (0,0) nach (0,280)
+ * - Hypotenuse: von (0,0) nach (560,280)
  */
 function geodreieckZeichnen() {
   const farbe   = KONFIGURATION.GEO_FARBE;
@@ -1163,7 +1161,6 @@ function geodreieckZeichnen() {
   const f30     = farbe + '4d';  // 30%
 
   // ── BASIS (unten, 28cm): von (0,280) nach (560,280) ─────────
-  // Teilstriche: jeder mm = 2 SVG-Einheiten
   let basisHtml = '';
   for (let mm = 0; mm <= 280; mm++) {
     const x     = mm * 2;
@@ -1200,14 +1197,11 @@ function geodreieckZeichnen() {
   D.geoSenkrechte.innerHTML = senkrechtHtml;
 
   // ── HYPOTENUSE-SKALA: von (0,0) nach (560,280) ──────────────
-  // Länge der Hypotenuse = √(560²+280²) ≈ 626 SVG-Einheiten ≈ 31.3 cm
   const hypLen = Math.hypot(560, 280);   // ≈ 625.7
-  const hypCm  = hypLen / 20;            // SVG-Einheiten → cm (1 cm = 20 SVG)
   const hnx    = 560 / hypLen, hny = 280 / hypLen;  // Einheitsvektor
   const hnpx   = -hny, hnpy = hnx;                  // Senkrecht (nach innen)
 
   let hypHtml = '';
-  // Teilstriche entlang der Hypotenuse, alle mm
   const mmGesamt = Math.floor(hypLen / 2); // mm entlang Hyp.
   for (let mm = 0; mm <= mmGesamt; mm++) {
     const t    = mm * 2;
@@ -1234,11 +1228,9 @@ function geodreieckZeichnen() {
   D.geoGrundlinie.innerHTML = hypHtml;
 
   // ── PARALLELE HILFSLINIEN (horizontal, alle 5mm = 10 SVG) ───
-  // Linien parallel zur Basis, im Innern des Dreiecks
   let hilfsHtml = '';
   for (let mm = 5; mm < 140; mm += 5) {
     const y   = 280 - mm * 2;
-    // x-Begrenzer: Dreiecks-Kante. Hypotenuse bei y: x = y * (560/280) = y*2
     const xMax = y * 2;
     if (xMax < 4) continue;
     const isCm = mm % 10 === 0;
@@ -1246,7 +1238,6 @@ function geodreieckZeichnen() {
       stroke="${isCm ? f30 : f30}" stroke-width="${isCm ? '0.7' : '0.4'}"
       stroke-dasharray="${isCm ? 'none' : '3,3'}"/>`;
     if (isCm) {
-      // Zentimeter-Beschriftung auf der Hilfslinie (rechts)
       hilfsHtml += `<text x="${xMax-6}" y="${y-2}"
         text-anchor="end" class="geo-zahl geo-zahl--klein" fill="${f50}"
         >${mm/10}</text>`;
@@ -1255,17 +1246,13 @@ function geodreieckZeichnen() {
   D.geoHilfslinien.innerHTML = hilfsHtml;
 
   // ── WINKELKREIS an der Spitze (0,0) ─────────────────────────
-  // Kleiner Halbkreis (Radius 40 SVG = 2cm) von 0° bis 90°
-  // (Winkel zwischen Senkrechter und Hypotenuse am Punkt 0,0)
   const bogR = 40;
   let winkelHtml = '';
-  // Bogen
   winkelHtml += `<path d="M ${bogR} 0 A ${bogR} ${bogR} 0 0 1 0 ${bogR}"
     fill="none" stroke="${f50}" stroke-width="0.8"/>`;
-  // Winkelmarkierungen alle 5°
   for (let grad = 5; grad < 90; grad += 5) {
     const rad = grad * Math.PI / 180;
-    const ix  = bogR * Math.sin(rad);    // Punkt auf Bogen (Winkel von Senkrechter)
+    const ix  = bogR * Math.sin(rad);    
     const iy  = bogR * Math.cos(rad);
     const len = grad % 10 === 0 ? 6 : 3;
     const rix = (bogR+len) * Math.sin(rad);
@@ -1281,14 +1268,10 @@ function geodreieckZeichnen() {
         class="geo-zahl geo-zahl--klein" fill="${f70}">${grad}°</text>`;
     }
   }
-  // Rechter-Winkel-Symbol unten links
   winkelHtml += `<polyline points="10,280 10,270 0,270"
     fill="none" stroke="${farbe}" stroke-width="1.0"/>`;
-  // Winkelangaben an den anderen Winkeln
-  // Winkel bei (560,280): arctan(280/560) ≈ 26.57° → zeige "27°"
   winkelHtml += `<text x="540" y="268" text-anchor="end"
     class="geo-zahl geo-zahl--klein" fill="${f70}">27°</text>`;
-  // Winkel bei (0,0): 90° − 27° = 63°
   winkelHtml += `<text x="12" y="14" text-anchor="start"
     class="geo-zahl geo-zahl--klein" fill="${f70}">63°</text>`;
 
@@ -1327,13 +1310,11 @@ function geodreieckKantenClient() {
   const sk     = Z.geoSkalierung;
   const winRad = Z.geoWinkel * Math.PI / 180;
   const cos    = Math.cos(winRad), sin = Math.sin(winRad);
-  // Ecken in SVG-Koordinaten: A=(0,0), B=(560,280), C=(0,280)
   const eckenSvg = [
-    { x: 0,   y: 0   },
+    { x: 0,   y: 0    },
     { x: 560, y: 280 },
     { x: 0,   y: 280 },
   ];
-  // Umrechnung in Client-Koordinaten
   const originX = rect.left, originY = rect.top;
   const punkte = eckenSvg.map(e => ({
     x: e.x*sk*cos - e.y*sk*sin + originX,
@@ -1341,21 +1322,18 @@ function geodreieckKantenClient() {
   }));
   return [
     { p1: punkte[0], p2: punkte[1], name: 'hypotenuse' },
-    { p1: punkte[1], p2: punkte[2], name: 'basis'       },
+    { p1: punkte[1], p2: punkte[2], name: 'basis'        },
     { p1: punkte[2], p2: punkte[0], name: 'senkrechte'  },
   ];
 }
 
-/** Geodreieck-Interaktion initialisieren.
- *  DIE GESAMTE SVG-FLÄCHE ist greifbar – kein separater Move-Griff.
- */
+/** Geodreieck-Interaktion initialisieren. */
 function geodreieckInit() {
   const svg = D.geoSvg;
 
   // ── SVG-Fläche: Verschieben ─────────────────────────────────
   svg.addEventListener('touchstart', e => {
     if (!Z.geodreieckAktiv) return;
-    // Wenn der Dreh-Griff berührt wird → nicht verschieben
     if (e.target === D.geoDrehGriff || D.geoDrehGriff.contains(e.target)) return;
     e.preventDefault(); e.stopPropagation();
     const t = e.touches[0];
@@ -1381,7 +1359,6 @@ function geodreieckInit() {
     e.preventDefault(); e.stopPropagation();
     const t    = e.touches[0];
     const rect = D.geoWrapper.getBoundingClientRect();
-    // Drehpunkt = untere linke Ecke des Wrappers (rechter Winkel)
     const svgH   = parseFloat(D.geoSvg.style.height) || 210;
     const pivotX = rect.left;
     const pivotY = rect.top + svgH;
@@ -1431,7 +1408,6 @@ function _geoBewegen(cx, cy) {
   }
   geodreieckTransformAnwenden();
 }
-
 
 /* ═══════════════════════════════════════════════════════════════════
    15. SPOTLIGHT
