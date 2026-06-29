@@ -484,7 +484,7 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   position: absolute;
   top: 60px; left: 60px;
   z-index: 300;
-  transform-origin: 0 100%;   /* Drehpunkt = untere linke Ecke */
+  transform-origin: 0 100%;   /* Drehpunkt = untere linke Ecke (0, 280) */
   touch-action: none;
   pointer-events: none;        /* Wrapper selbst: kein Pointer */
 }
@@ -538,7 +538,7 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   pointer-events: none;
 }
 
-/* Dreh-Griff an der Spitze */
+/* Dreh-Griff an der Spitze (0,0) */
 .geo-dreh-griff {
   position: absolute;
   width: 32px; height: 32px;
@@ -549,7 +549,8 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   cursor: grab;
   pointer-events: all;
   touch-action: none;
-  top: -40px; left: -16px;
+  /* Zentriert den 32px-Griff exakt auf den SVG-Nullpunkt oben links */
+  top: -16px; left: -16px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
   transition: transform 80ms ease;
 }
@@ -560,7 +561,6 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
   pointer-events: none;
 }
-
 
 /* ═══════════════════════════════════════════════════════════════════
    13. FOKUS-TOOLBAR
