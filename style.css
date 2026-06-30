@@ -490,7 +490,13 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   /* Der Drehpunkt liegt exakt in der Mitte der Unterkante (Nullpunkt: 50% X, 100% Y) */
   transform-origin: 50% 100%;
   touch-action: none;
-  pointer-events: none;
+  /* WICHTIG: pointer-events:all auf dem WRAPPER (nicht auf dem Bild!).
+     So fängt der Wrapper Klicks ab, aber app.js entscheidet per
+     Hit-Test (geodreieckTreffer), ob es sich um "verschieben" (innen)
+     oder "an der Kante zeichnen" handelt (nahe Rand → Event wird per
+     pointerdown-Handler an das darunterliegende Canvas durchgereicht,
+     indem preventDefault/stopPropagation NICHT aufgerufen wird). */
+  pointer-events: all;
 }
 .geodreieck-svg {
   width: 560px; /* Wird via JS dynamisch anhand von cm/Zoom skaliert */
@@ -501,7 +507,14 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   /* HIER WIRD ES DURCHSICHTIG: 0.78 bedeutet 78% Sichtbarkeit, PDF scheint durch */
   opacity: 0.78;
   transition: opacity 0.2s ease;
-  pointer-events: all;
+  /* WICHTIG: pointer-events:none als Basis! Das Bild darf NICHT die
+     gesamte rechteckige Bounding-Box für Klicks blockieren, sonst kann
+     entlang der Dreieckskanten nicht mehr auf dem darunterliegenden
+     Zeichen-Canvas gezeichnet werden (Snap-Funktion). Stattdessen wird
+     im JS bei jedem touchstart/mousedown per Hit-Test geprüft, ob der
+     Klick "innen" (= Geodreieck verschieben) oder "nahe einer Kante"
+     (= Event durchreichen, damit das Canvas zeichnen kann) liegt. */
+  pointer-events: none;
   -webkit-user-drag: none;
   user-select: none;
 }
