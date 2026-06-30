@@ -472,12 +472,17 @@
           </div>
         </div>
         <div class="einstellungen-zeile einstellungen-zeile--spalte">
-          <span class="einstellungen-label">Geodreieck-Farbe</span>
+          <span class="einstellungen-label">Geodreieck-Kalibrierung</span>
           <div class="slider-zeile">
-            <input type="color" id="picker-geodreieck" class="einstellungen-color-picker"
-                   value="#64c8ff"/>
-            <span class="slider-wert">Farbe</span>
+            <input type="range" id="slider-geo-kalibrierung" class="einstellungen-slider"
+                   min="85" max="115" step="0.5" value="100"/>
+            <span id="geo-kalibrierung-anzeige" class="slider-wert">100 %</span>
           </div>
+          <p class="einstellungen-hinweis">
+            Geodreieck auf eine bekannte 1cm-Markierung im PDF legen
+            und mit einem echten Lineal vergleichen. Stimmt es nicht,
+            hier feinjustieren.
+          </p>
         </div>
       </div>
       <div class="einstellungen-abschnitt">
