@@ -60,7 +60,7 @@ const KONFIGURATION = {
   // Spitze (90°-Winkel) liegt bei x=50%, y=0.
   GEO_SEITENVERHAELTNIS: 0.5,  // Höhe / Breite des PNGs
   GEO_NULLPUNKT_Y_ANTEIL: 0.90, // Y-Position des Nullpunkts relativ zur Bildhöhe
-  GEO_CM_LAENGE:     28,   // Basislinie (volle Bildbreite) in cm
+  GEO_CM_LAENGE:     20,   // Basislinie (volle Bildbreite) in cm
   GEO_SNAP_PX:       20,
   GEO_FARBE:         '#64c8ff',
 
