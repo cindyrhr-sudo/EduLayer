@@ -123,6 +123,12 @@ const Z = {
   geoDrag:         null,
   geoSnapAktiv:    false,
 
+  linealAktiv:     false,
+  linealPos:       { x: 60, y: 180 },
+  linealWinkel:    0,
+  linealLaengeCm:  20,    // Standardlänge des Lineals in cm
+  linealDrag:      null,
+
   zoom:            1.0,
   pinch:           null,
 
@@ -184,7 +190,15 @@ const D = {
   geoWrapper:        document.getElementById('geodreieck-wrapper'),
   geoBild:           document.getElementById('geodreieck-svg'),
   geoFuehrung:       document.getElementById('geo-fuehrungslinie'),
+  geoMoveGriff:      document.getElementById('geo-move-griff'),
   geoDrehGriff:      document.getElementById('geo-dreh-griff'),
+
+  btnLineal:         document.getElementById('btn-lineal'),
+  linealWrapper:     document.getElementById('lineal-wrapper'),
+  linealBalken:      document.getElementById('lineal-balken'),
+  linealSkala:       document.getElementById('lineal-skala'),
+  linealMoveGriff:   document.getElementById('lineal-move-griff'),
+  linealDrehGriff:   document.getElementById('lineal-dreh-griff'),
 
   btnNotizen:        document.getElementById('btn-notizen'),
   notizenOverlay:    document.getElementById('notizen-overlay'),
@@ -594,6 +608,7 @@ function einstellungenInit() {
     D.geoKalibrierungAnzeige.textContent = `${prozent} %`;
     try { localStorage.setItem('edulayer-geo-kalibrierung', String(prozent)); } catch(_) {}
     if (Z.geodreieckAktiv) geodreieckSkalieren();
+    if (Z.linealAktiv) linealSkalieren();
   });
   D.sliderPdfTransparenz.addEventListener('input', () => {
     const prozent = +D.sliderPdfTransparenz.value;
@@ -772,6 +787,7 @@ function sidebarInit() {
 
   D.btnFokusSchliessen.addEventListener('click', fokusModusAus);
   D.btnGeodrei.addEventListener('click', geodreieckUmschalten);
+  D.btnLineal.addEventListener('click', linealUmschalten);
 
   document.addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey) {
@@ -784,6 +800,7 @@ function sidebarInit() {
       if (Z.offenesFlyout)      { flyoutsSchliessen(); return; }
       if (Z.fokusModus !== 'aus') { fokusModusAus(); return; }
       if (Z.geodreieckAktiv)    { geodreieckAus(); return; }
+      if (Z.linealAktiv)        { linealAus(); return; }
     }
   });
 
@@ -824,6 +841,35 @@ function scrollModusUmschalten() {
 /* ═══════════════════════════════════════════════════════════════════
    11. ZEICHEN-ENGINE
 ════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Kombinierter Snap-Helfer: prüft Geodreieck- und Lineal-Snap und
+ * gibt den näheren Treffer zurück (beide Werkzeuge können parallel
+ * aktiv sein). Fällt auf den unveränderten Punkt zurück, wenn keines
+ * der beiden Werkzeuge aktiv ist oder kein Snap-Treffer vorliegt.
+ */
+function linealUndGeoSnap(e, canvas, fallbackPunkt) {
+  let beste = null, besterAbstand = Infinity;
+
+  if (Z.geodreieckAktiv) {
+    const snap = geodreieckSnap(e, canvas);
+    if (snap) {
+      const client = clientKoord(e);
+      const d = Math.hypot(client.x - snap.x, client.y - snap.y);
+      if (d < besterAbstand) { besterAbstand = d; beste = snap; }
+    }
+  }
+  if (Z.linealAktiv) {
+    const snap = linealSnap(e, canvas);
+    if (snap) {
+      const client = clientKoord(e);
+      const d = Math.hypot(client.x - snap.x, client.y - snap.y);
+      if (d < besterAbstand) { besterAbstand = d; beste = snap; }
+    }
+  }
+  return beste || fallbackPunkt;
+}
+
 function strichStarten(e, canvas) {
   if (Z.modus === 'scrollen') return;
   if (e.touches?.length > 1)  return;
@@ -834,10 +880,7 @@ function strichStarten(e, canvas) {
   Z.zeichnet = true;
 
   let p = koordinaten(e, canvas);
-  if (Z.geodreieckAktiv) {
-    const snap = geodreieckSnap(e, canvas);
-    if (snap) p = snap;
-  }
+  p = linealUndGeoSnap(e, canvas, p);
   Z.letzterPunkt = p;
 
   const seite = +canvas.closest('.seite-container').dataset.seite;
@@ -885,10 +928,7 @@ function strichBewegen(e, canvas) {
   e.preventDefault();
 
   let p = koordinaten(e, canvas);
-  if (Z.geodreieckAktiv) {
-    const snap = geodreieckSnap(e, canvas);
-    if (snap) p = snap;
-  }
+  p = linealUndGeoSnap(e, canvas, p);
 
   if (Z.werkzeug === 'textmarker' && Z.aktuellerStrich?.offCtx) {
     const offCtx = Z.aktuellerStrich.offCtx;
@@ -1135,7 +1175,7 @@ function geodreieckAn() {
   D.btnGeodrei.setAttribute('aria-pressed', 'true');
   geodreieckSkalieren();
   geodreieckTransformAnwenden();
-  toast('Geodreieck: Fläche = Verschieben · Dreh-Griff = Drehen', 'info', 3000);
+  toast('Geodreieck: runder Knopf = Verschieben · Dreh-Griff = Drehen', 'info', 3000);
 }
 
 function geodreieckAus() {
@@ -1235,7 +1275,6 @@ function geodreieckSnap(e, canvas) {
  * und an die Wrapper-Position (Z.geoPos) verschoben.
  */
 function geodreieckKantenClient() {
-  const wrapRect = D.geoWrapper.getBoundingClientRect();
   const B = D.geoBild.offsetWidth;
   const H = D.geoBild.offsetHeight;
   const winRad = Z.geoWinkel * Math.PI / 180;
@@ -1252,23 +1291,14 @@ function geodreieckKantenClient() {
   ];
 
   // Rotation um den Drehpunkt, dann Verschiebung zur Wrapper-Position.
-  // wrapRect.left/top entspricht der oberen linken Ecke des UNROTIERTEN
-  // Wrappers; da CSS transform den Wrapper bereits rotiert hat, gibt
-  // getBoundingClientRect() die tatsächliche (gerenderte) Bounding-Box
-  // zurück – das reicht für Verschiebung nicht aus, da wir die Rotation
-  // selbst nachvollziehen müssen. Wir berechnen daher direkt aus
-  // Z.geoPos (unrotierter Ursprung oben-links) + Rotation um den Pivot.
   const ursprungX = Z.geoPos.x;
   const ursprungY = Z.geoPos.y;
 
   const punkte = eckenBild.map(p => {
-    // Punkt relativ zum Drehpunkt
     const rx = p.x - pivotX;
     const ry = p.y - pivotY;
-    // Rotieren
     const gx = rx * cos - ry * sin;
     const gy = rx * sin + ry * cos;
-    // Zurück verschieben: Drehpunkt liegt bei (ursprungX+pivotX, ursprungY+pivotY)
     return {
       x: ursprungX + pivotX + gx,
       y: ursprungY + pivotY + gy,
@@ -1283,96 +1313,43 @@ function geodreieckKantenClient() {
 }
 
 /**
- * Hit-Test: Liegt der Punkt (cx,cy) INNERHALB der Dreiecksfläche,
- * mit Sicherheitsabstand zu allen drei Kanten (= Snap-Zone)?
- *
- * Das löst den Konflikt zwischen "Geodreieck verschieben" (auf der
- * Fläche tippen) und "am Lineal entlang zeichnen" (nahe der Kante
- * tippen): Nur Treffer im Inneren (außerhalb der Snap-Zone) lösen
- * eine Verschiebung aus. Treffer nahe einer Kante oder außerhalb des
- * Dreiecks werden NICHT abgefangen, damit das darunterliegende
- * Zeichen-Canvas das Event bekommt und geodreieckSnap() greifen kann.
- *
- * Verfahren: Punkt-in-Dreieck-Test via Vorzeichen der Kreuzprodukte
- * (baryzentrisch/cross-product), kombiniert mit Mindestabstand zu
- * jeder Kante (= KONFIGURATION.GEO_SNAP_PX als Toleranzzone).
+ * Geodreieck-Interaktion: NUR zwei feste Griffe sind anfassbar
+ * (Move-Griff in der Mitte, Dreh-Griff an der Spitze). Die gesamte
+ * restliche Fläche – inklusive jeder Kante ohne Toleranz-Lücke –
+ * blockiert nie ein Event, weil weder der Wrapper noch das Bild
+ * pointer-events:all besitzen (siehe style.css). Dadurch ist kein
+ * geometrischer Hit-Test mehr nötig: Klicks auf den Griffen werden
+ * von genau diesen Elementen gefangen, alles andere geht ungehindert
+ * zum Zeichen-Canvas durch.
  */
-function geodreieckTreffer(cx, cy) {
-  const kanten = geodreieckKantenClient();
-  const snapPx = KONFIGURATION.GEO_SNAP_PX;
-
-  // 1) Liegt der Punkt überhaupt innerhalb des Dreiecks?
-  //    Vorzeichen-Test: für jede Kante muss der Punkt auf derselben
-  //    Seite liegen wie der jeweils dritte (gegenüberliegende) Eckpunkt.
-  const [kLinks, kBasis, kRechts] = kanten;
-  const eckpunkte = [kLinks.p1, kLinks.p2, kRechts.p2]; // Spitze, UL, UR (eindeutig)
-
-  function vorzeichen(p1, p2, p3) {
-    return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
-  }
-  const pPunkt = { x: cx, y: cy };
-  const d1 = vorzeichen(pPunkt, eckpunkte[0], eckpunkte[1]);
-  const d2 = vorzeichen(pPunkt, eckpunkte[1], eckpunkte[2]);
-  const d3 = vorzeichen(pPunkt, eckpunkte[2], eckpunkte[0]);
-  const hatNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-  const hatPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-  const imDreieck = !(hatNeg && hatPos);
-
-  if (!imDreieck) return false;
-
-  // 2) Mindestabstand zu ALLEN drei Kanten muss größer als die
-  //    Snap-Zone sein, sonst gilt der Klick als "Kante", nicht "Fläche".
-  for (const k of kanten) {
-    const proj = punktAufLinie(pPunkt, k.p1, k.p2);
-    const dist = Math.hypot(pPunkt.x - proj.x, pPunkt.y - proj.y);
-    if (dist < snapPx) return false;
-  }
-
-  return true;
-}
-
 function geodreieckInit() {
-  const wrapper = D.geoWrapper;
-
-  // Wrapper: Verschieben NUR wenn Treffer im Inneren der Dreiecksfläche
-  // (außerhalb der Snap-Zone an den Kanten). Sonst Event durchreichen,
-  // damit das Zeichen-Canvas darunter den Klick für das Snap-Zeichnen
-  // empfängt.
-  wrapper.addEventListener('touchstart', e => {
-    if (!Z.geodreieckAktiv) return;
-    if (e.target === D.geoDrehGriff || D.geoDrehGriff.contains(e.target)) return;
-    const t = e.touches[0];
-    if (!geodreieckTreffer(t.clientX, t.clientY)) return; // Kante/außerhalb → durchreichen
-    e.preventDefault(); e.stopPropagation();
+  function geoMoveStart(cx, cy) {
     Z.geoDrag = {
-      art: 'move', startX: t.clientX, startY: t.clientY,
+      art: 'move', startX: cx, startY: cy,
       startPos: { ...Z.geoPos },
     };
+  }
+
+  D.geoMoveGriff.addEventListener('touchstart', e => {
+    if (!Z.geodreieckAktiv) return;
+    e.preventDefault(); e.stopPropagation();
+    geoMoveStart(e.touches[0].clientX, e.touches[0].clientY);
   }, { passive: false });
 
-  wrapper.addEventListener('mousedown', e => {
+  D.geoMoveGriff.addEventListener('mousedown', e => {
     if (!Z.geodreieckAktiv) return;
-    if (e.target === D.geoDrehGriff || D.geoDrehGriff.contains(e.target)) return;
-    if (!geodreieckTreffer(e.clientX, e.clientY)) return; // Kante/außerhalb → durchreichen
     e.preventDefault(); e.stopPropagation();
-    Z.geoDrag = {
-      art: 'move', startX: e.clientX, startY: e.clientY,
-      startPos: { ...Z.geoPos },
-    };
+    geoMoveStart(e.clientX, e.clientY);
   });
 
   // Dreh-Griff: Rotation um die Mitte der Unterkante
   // (= transform-origin: 50% 100% des Wrappers)
   function geoRotateStart(cx, cy) {
     const wRect = D.geoWrapper.getBoundingClientRect();
-    // Pivot in Client-Koordinaten: horizontale Mitte, untere Kante
     const pivotX = wRect.left + wRect.width / 2;
     const pivotY = wRect.bottom;
     Z.geoDrag = {
       art: 'rotate', pivotX, pivotY,
-      // Offset: Winkel zwischen Dreh-Griff-Start und aktuellem geoWinkel
-      // (Griff sitzt oben an der Spitze, 90°-Versatz zur 0°-Achse ist
-      // bereits durch atan2 berücksichtigt, da wir relativ rechnen)
       startWinkel: winkelZwischen(pivotX, pivotY, cx, cy) - Z.geoWinkel,
     };
   }
@@ -1420,10 +1397,228 @@ function _geoBewegen(cx, cy) {
 
 
 /* ═══════════════════════════════════════════════════════════════════
+   14b. LINEAL (eigenständiges Werkzeug, CSS/SVG-gezeichnet)
+   ─────────────────────────────────────────────────────────────────
+   Einfaches gerades Lineal mit cm/mm-Skala. Funktioniert nach
+   demselben Prinzip wie das Geodreieck: ein Move-Griff in der Mitte,
+   ein Dreh-Griff am rechten Ende, Balkenfläche und Kanten selbst
+   blockieren nie ein Event – Zeichnen entlang der Lineal-Kante
+   funktioniert daher genau wie beim Geodreieck ohne Toleranz-Lücke.
+
+   Koordinatensystem:
+     - transform-origin: 50% 50% am Wrapper (Drehpunkt = Mitte)
+     - Balkenbreite = linealLaengeCm × pxProCm × zoom (analog Geodreieck)
+     - Die obere Kante (y=0 im Balken) ist die Zeichenkante; Snap
+       erfolgt auf eine einzelne Linie statt drei Dreieckskanten.
+════════════════════════════════════════════════════════════════════ */
+
+function linealAn() {
+  Z.linealAktiv = true;
+  D.linealWrapper.style.display = 'block';
+  D.linealWrapper.setAttribute('aria-hidden', 'false');
+  D.btnLineal.classList.add('aktiv');
+  D.btnLineal.setAttribute('aria-pressed', 'true');
+  linealSkalieren();
+  linealZeichnenSkala();
+  linealTransformAnwenden();
+  toast('Lineal: runder Knopf = Verschieben · Dreh-Griff = Drehen', 'info', 2600);
+}
+
+function linealAus() {
+  Z.linealAktiv = false;
+  D.linealWrapper.style.display = 'none';
+  D.linealWrapper.setAttribute('aria-hidden', 'true');
+  D.btnLineal.classList.remove('aktiv');
+  D.btnLineal.setAttribute('aria-pressed', 'false');
+  D.geoFuehrung.setAttribute('display', 'none');
+}
+
+function linealUmschalten() { Z.linealAktiv ? linealAus() : linealAn(); }
+
+/** Skalierung analog zum Geodreieck: linealLaengeCm × pxProCm × zoom. */
+function linealSkalieren() {
+  const pxProCm = Z.pxProCm[Z.aktiveSeite] || (KONFIGURATION.PDF_SCALE * 72 / 2.54);
+  const breite  = Z.linealLaengeCm * pxProCm * Z.zoom * Z.geoKalibrierung;
+  D.linealBalken.style.width = `${breite}px`;
+  linealZeichnenSkala();
+}
+
+function linealTransformAnwenden() {
+  D.linealWrapper.style.transform =
+    `translate(${Z.linealPos.x}px, ${Z.linealPos.y}px) rotate(${Z.linealWinkel}deg)`;
+}
+
+/** Zeichnet die cm/mm-Teilstriche und Zahlen ins Lineal-SVG. */
+function linealZeichnenSkala() {
+  const breitePx = D.linealBalken.offsetWidth;
+  const hoehePx  = D.linealBalken.offsetHeight;
+  const cm       = Z.linealLaengeCm;
+  const pxProCmAktuell = breitePx / cm;
+
+  D.linealSkala.setAttribute('viewBox', `0 0 ${breitePx} ${hoehePx}`);
+
+  let html = '';
+  const mmGesamt = cm * 10;
+  for (let mm = 0; mm <= mmGesamt; mm++) {
+    const x     = (mm / 10) * pxProCmAktuell;
+    const isCm  = mm % 10 === 0;
+    const isHCm = mm % 5  === 0 && !isCm;
+    const len   = isCm ? hoehePx * 0.55 : isHCm ? hoehePx * 0.38 : hoehePx * 0.22;
+    const klasse = isCm ? 'lineal-strich--cm' : isHCm ? 'lineal-strich--halb' : 'lineal-strich--mm';
+    html += `<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${len.toFixed(1)}"
+      class="lineal-strich ${klasse}"/>`;
+    if (isCm) {
+      html += `<text x="${x.toFixed(1)}" y="${(len + 13).toFixed(1)}"
+        class="lineal-zahl">${mm / 10}</text>`;
+    }
+  }
+  D.linealSkala.innerHTML = html;
+}
+
+/**
+ * Snap: Gibt Canvas-Koordinaten zurück wenn Stift nahe der oberen
+ * Lineal-Kante (y=0 im Balken-Koordinatensystem) ist.
+ */
+function linealSnap(e, canvas) {
+  if (!Z.linealAktiv) return null;
+  const client = clientKoord(e);
+  const kante  = linealKanteClient();
+  const snapPx = KONFIGURATION.GEO_SNAP_PX;
+
+  const proj = punktAufLinie(client, kante.p1, kante.p2);
+  const dist = Math.hypot(client.x - proj.x, client.y - proj.y);
+
+  if (dist < snapPx) {
+    D.geoFuehrung.setAttribute('display', 'inline');
+    D.geoFuehrung.setAttribute('x1', proj.x);
+    D.geoFuehrung.setAttribute('y1', proj.y);
+    D.geoFuehrung.setAttribute('x2', proj.x);
+    D.geoFuehrung.setAttribute('y2', proj.y);
+    const rect = canvas.getBoundingClientRect();
+    const skalX = canvas.width/rect.width, skalY = canvas.height/rect.height;
+    return { x: (proj.x-rect.left)*skalX, y: (proj.y-rect.top)*skalY };
+  }
+  D.geoFuehrung.setAttribute('display', 'none');
+  return null;
+}
+
+/** Obere Lineal-Kante (Zeichenkante) in Client-Koordinaten. */
+function linealKanteClient() {
+  const B = D.linealBalken.offsetWidth;
+  const H = D.linealBalken.offsetHeight;
+  const winRad = Z.linealWinkel * Math.PI / 180;
+  const cos = Math.cos(winRad), sin = Math.sin(winRad);
+
+  // Drehpunkt = Mitte des Balkens (B/2, H/2)
+  const pivotX = B / 2, pivotY = H / 2;
+
+  // Obere Kante: von (0,0) bis (B,0) im Balken-Koordinatensystem
+  const eckenBalken = [
+    { x: 0, y: 0 },
+    { x: B, y: 0 },
+  ];
+
+  const ursprungX = Z.linealPos.x;
+  const ursprungY = Z.linealPos.y;
+
+  const punkte = eckenBalken.map(p => {
+    const rx = p.x - pivotX;
+    const ry = p.y - pivotY;
+    const gx = rx * cos - ry * sin;
+    const gy = rx * sin + ry * cos;
+    return {
+      x: ursprungX + pivotX + gx,
+      y: ursprungY + pivotY + gy,
+    };
+  });
+
+  return { p1: punkte[0], p2: punkte[1] };
+}
+
+/**
+ * Lineal-Interaktion: gleiche Logik wie beim Geodreieck – nur die
+ * zwei festen Griffe (Move, Dreh) sind anfassbar, der Rest blockiert
+ * nie ein Event.
+ */
+function linealInit() {
+  function linealMoveStart(cx, cy) {
+    Z.linealDrag = {
+      art: 'move', startX: cx, startY: cy,
+      startPos: { ...Z.linealPos },
+    };
+  }
+
+  D.linealMoveGriff.addEventListener('touchstart', e => {
+    if (!Z.linealAktiv) return;
+    e.preventDefault(); e.stopPropagation();
+    linealMoveStart(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: false });
+
+  D.linealMoveGriff.addEventListener('mousedown', e => {
+    if (!Z.linealAktiv) return;
+    e.preventDefault(); e.stopPropagation();
+    linealMoveStart(e.clientX, e.clientY);
+  });
+
+  // Dreh-Griff: Rotation um die Mitte des Lineals
+  function linealRotateStart(cx, cy) {
+    const wRect = D.linealWrapper.getBoundingClientRect();
+    const pivotX = wRect.left + wRect.width / 2;
+    const pivotY = wRect.top + wRect.height / 2;
+    Z.linealDrag = {
+      art: 'rotate', pivotX, pivotY,
+      startWinkel: winkelZwischen(pivotX, pivotY, cx, cy) - Z.linealWinkel,
+    };
+  }
+
+  D.linealDrehGriff.addEventListener('touchstart', e => {
+    if (!Z.linealAktiv) return;
+    e.preventDefault(); e.stopPropagation();
+    linealRotateStart(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: false });
+
+  D.linealDrehGriff.addEventListener('mousedown', e => {
+    if (!Z.linealAktiv) return;
+    e.preventDefault(); e.stopPropagation();
+    linealRotateStart(e.clientX, e.clientY);
+  });
+
+  // Globale Move/End-Events
+  document.addEventListener('touchmove', e => {
+    if (!Z.linealDrag) return;
+    e.preventDefault();
+    _linealBewegen(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: false });
+
+  document.addEventListener('mousemove', e => {
+    if (!Z.linealDrag) return;
+    _linealBewegen(e.clientX, e.clientY);
+  });
+
+  document.addEventListener('touchend',  () => { Z.linealDrag = null; });
+  document.addEventListener('mouseup',   () => { Z.linealDrag = null; });
+}
+
+function _linealBewegen(cx, cy) {
+  if (!Z.linealDrag) return;
+  if (Z.linealDrag.art === 'move') {
+    const dx = cx - Z.linealDrag.startX, dy = cy - Z.linealDrag.startY;
+    Z.linealPos = { x: Z.linealDrag.startPos.x + dx, y: Z.linealDrag.startPos.y + dy };
+  } else if (Z.linealDrag.art === 'rotate') {
+    Z.linealWinkel = Math.round(
+      winkelZwischen(Z.linealDrag.pivotX, Z.linealDrag.pivotY, cx, cy) - Z.linealDrag.startWinkel
+    );
+  }
+  linealTransformAnwenden();
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
    15. SPOTLIGHT
 ════════════════════════════════════════════════════════════════════ */
 function spotlightAn(form) {
   Z.spotFenster = {
+
     x: (window.innerWidth  - KONFIGURATION.SPOTLIGHT_START_B) / 2,
     y: (window.innerHeight - KONFIGURATION.SPOTLIGHT_START_H) / 2,
     b: KONFIGURATION.SPOTLIGHT_START_B, h: KONFIGURATION.SPOTLIGHT_START_H,
@@ -1535,8 +1730,7 @@ function zoomSetzen(n) {
   D.zoomAnzeige.textContent = `${Math.round(Z.zoom * 100)}%`;
 
   if (Z.geodreieckAktiv) geodreieckSkalieren();
-
-  // Offene Flyouts neu positionieren (falls sichtbar)
+  if (Z.linealAktiv) linealSkalieren();
   if (Z.offenesFlyout === 'stifte') flyoutPositionieren(D.flyoutStifte, D.btnStiftAktiv);
   if (Z.offenesFlyout === 'fokus')  flyoutPositionieren(D.flyoutFokus,  D.btnFokusAktiv);
 }
@@ -1575,6 +1769,7 @@ function zoomInit() {
     zoomZentrierungAktualisieren();
     laserCanvasAnpassen();
     if (Z.geodreieckAktiv) geodreieckSkalieren();
+    if (Z.linealAktiv) linealSkalieren();
     // Flyouts neu positionieren
     if (Z.offenesFlyout === 'stifte') flyoutPositionieren(D.flyoutStifte, D.btnStiftAktiv);
     if (Z.offenesFlyout === 'fokus')  flyoutPositionieren(D.flyoutFokus,  D.btnFokusAktiv);
@@ -1610,6 +1805,7 @@ async function pdfLaden(datei) {
     D.zoomSteuerung.style.display = 'flex';
     requestAnimationFrame(zoomZentrierungAktualisieren);
     if (Z.geodreieckAktiv) { geodreieckSkalieren(); }
+    if (Z.linealAktiv) { linealSkalieren(); }
     toast(`„${datei.name}" geladen (${Z.seitenAnzahl} Seiten)`, 'erfolg');
   } catch (err) {
     console.error('[EduLayer] PDF-Ladefehler:', err);
@@ -1658,6 +1854,9 @@ async function pdfSeiteRendern(nr) {
         // weiterhin 1cm entspricht.
         if (Z.geodreieckAktiv && seiteAlt !== nr) {
           geodreieckSkalieren();
+        }
+        if (Z.linealAktiv && seiteAlt !== nr) {
+          linealSkalieren();
         }
       }
     });
@@ -1730,6 +1929,7 @@ function appStart() {
   notizenInit();
   spotlightInit();
   geodreieckInit();
+  linealInit();
   zoomInit();
 
   werkzeugWaehlen('stift-duenn');
@@ -1757,6 +1957,7 @@ function appStart() {
       ziel.closest('.einstellungen-panel')||
       ziel.closest('.notizen-panel')     ||
       ziel.closest('.geodreieck-wrapper')||
+      ziel.closest('.lineal-wrapper')    ||
       ziel.closest('.flyout');
     if(!erlaubt) e.preventDefault();
   }, { passive: false });
@@ -1767,6 +1968,7 @@ function appStart() {
       laserCanvasAnpassen();
       zoomZentrierungAktualisieren();
       if(Z.geodreieckAktiv) geodreieckSkalieren();
+      if(Z.linealAktiv) linealSkalieren();
       if(Z.offenesFlyout==='stifte') flyoutPositionieren(D.flyoutStifte, D.btnStiftAktiv);
       if(Z.offenesFlyout==='fokus')  flyoutPositionieren(D.flyoutFokus,  D.btnFokusAktiv);
     }, 350);
