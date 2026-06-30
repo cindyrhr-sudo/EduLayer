@@ -1,15 +1,15 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════╗
- * ║  EduLayer – Haupt-Anwendungslogik  (Version 6)                  ║
+ * ║  EduLayer – Haupt-Anwendungslogik  (Version 6.1)                ║
  * ╚══════════════════════════════════════════════════════════════════╝
  *
- * ÄNDERUNGEN v6:
- *  - Geodreieck: Gesamte SVG-Fläche greifbar, realistisches SVG
- *  - Sidebar: Flyout-Untermenüs für Stifte und Fokus/Laser
- *  - Scroll-Fix: zoom-scaler mit transform-origin:top left, linker
- *    Rand jetzt erreichbar
- *  - Laser + Spotlight in einem Flyout gebündelt
- *  - Lehrer-Layer-Button entfernt
+ * ÄNDERUNGEN v6.1:
+ *  - Flyout: position:fixed + flyoutPositionieren() behebt iOS-
+ *    Safari overflow-clip-Bug (overflow-y:auto bricht overflow-x:visible)
+ *  - Geodreieck: komplett neu gezeichnet als realistisches deutsches
+ *    Schuldreieck (Winkelhalbkreis 0–90°, cm-Skalen auf 3 Seiten,
+ *    5mm-Parallellinien, korrekte Winkelangaben)
+ *  - transform-origin des Wrappers korrigiert: Drehpunkt = Spitze (0,0)
  *
  * STRUKTUR:
  *  1.  KONFIGURATION
@@ -27,7 +27,7 @@
  * 13.  UNDO / REDO
  * 14.  GEODREIECK
  * 15.  SPOTLIGHT
- * 16.  ZOOM (inkl. Scroll-Fix)
+ * 16.  ZOOM
  * 17.  PDF-RENDERING
  * 18.  PDF-EXPORT
  * 19.  SERVICE WORKER
@@ -52,13 +52,16 @@ const KONFIGURATION = {
   LASER_FARBE:       '#ff2222',
   STANDARD_FARBE:    '#1a3a6b',
 
-  // Geodreieck
-  // viewBox ist 560×280 SVG-Einheiten = 28cm × 14cm
-  // (1 SVG-Einheit = 0.5mm)
-  GEO_VIEWBOX_B:     560,   // viewBox-Breite
-  GEO_VIEWBOX_H:     280,   // viewBox-Höhe
-  GEO_CM_LAENGE:     28,    // Grundlinie in cm
-  GEO_SNAP_PX:       20,    // Snap-Distanz in Bildschirm-Pixeln
+  // Geodreieck (PNG-Basis)
+  // Bild ist 1280×640px → Seitenverhältnis 2:1 (Breite:Höhe)
+  // Darstellungsbreite entspricht 28cm reale Kantenlänge.
+  // Nullpunkt der Skala liegt bei x=50% (Bildmitte), y≈90% (etwas über
+  // der reinen Bildunterkante, da unten ein kleiner cm-Lineal-Rand ist).
+  // Spitze (90°-Winkel) liegt bei x=50%, y=0.
+  GEO_SEITENVERHAELTNIS: 0.5,  // Höhe / Breite des PNGs
+  GEO_NULLPUNKT_Y_ANTEIL: 0.90, // Y-Position des Nullpunkts relativ zur Bildhöhe
+  GEO_CM_LAENGE:     28,   // Basislinie (volle Bildbreite) in cm
+  GEO_SNAP_PX:       20,
   GEO_FARBE:         '#64c8ff',
 
   SPOTLIGHT_MIN_B:   60,
@@ -80,7 +83,6 @@ const KONFIGURATION = {
    2. ZUSTAND
 ════════════════════════════════════════════════════════════════════ */
 const Z = {
-  // Werkzeuge
   werkzeug:        'stift-duenn',
   strichfarbe:     KONFIGURATION.STANDARD_FARBE,
   strichbreite:    KONFIGURATION.STIFT_DUENN_PX,
@@ -88,14 +90,10 @@ const Z = {
   letzterPunkt:    null,
   aktuellerStrich: null,
 
-  // App-Modi
-  modus:           'zeichnen',  // 'zeichnen' | 'scrollen'
+  modus:           'zeichnen',
   thema:           'dunkel',
-
-  // Fokus-Modus: 'aus' | 'oval' | 'rechteck' | 'laser'
   fokusModus:      'aus',
 
-  // PDF
   pdfDokument:     null,
   seitenAnzahl:    0,
   aktiveSeite:     1,
@@ -103,48 +101,38 @@ const Z = {
   viewports:       {},
   pxProCm:         {},
 
-  // Annotationen
   annotationen:    {},
   undoVerlauf:     {},
   redoVerlauf:     {},
 
-  // Lehrer-Notizen
   notizenProSeite: {},
   notizenOffen:    false,
   notizenSeite:    1,
 
-  // Textmarker Offscreen
   markerOffscreen: null,
 
-  // Spotlight
   spotFenster:     { x: 0, y: 0, b: 320, h: 200 },
   spotGriff:       null,
   spotDragStart:   null,
 
-  // Geodreieck
   geodreieckAktiv: false,
-  geoPos:          { x: 80, y: 120 },   // Position in Hauptbereich-Koordinaten
+  geoPos:          { x: 80, y: 120 },
   geoWinkel:       0,
-  geoSkalierung:   1,                   // px pro SVG-Einheit
-  geoDrag:         null,                // { art:'move'|'rotate', ... }
+  geoSkalierung:   1,
+  geoDrag:         null,
   geoSnapAktiv:    false,
 
-  // Zoom
   zoom:            1.0,
   pinch:           null,
 
-  // Sidebar
   sidebarSeite:    'right',
 
-  // Laser
   laserSchweif:    [],
   laserAnimFrame:  null,
   laserAktiv:      false,
 
-  // Flyouts
-  offenesFlyout:   null,   // 'stifte' | 'fokus' | null
+  offenesFlyout:   null,
 
-  // Einstellungen
   einstellungenOffen: false,
 };
 
@@ -161,57 +149,42 @@ const D = {
   pdfContainer:      document.getElementById('pdf-container'),
   startAnzeige:      document.getElementById('start-anzeige'),
 
-  // Datei
   btnDateiLaden:     document.getElementById('btn-datei-laden'),
   btnStartLaden:     document.getElementById('btn-start-laden'),
   dateiInput:        document.getElementById('datei-input'),
 
-  // Stift-Untermenü
   btnStiftAktiv:     document.getElementById('btn-stift-aktiv'),
   iconStiftAktiv:    document.getElementById('icon-stift-aktiv'),
   labelStiftAktiv:   document.getElementById('label-stift-aktiv'),
   flyoutStifte:      document.getElementById('flyout-stifte'),
   flyoutStiftBtns:   document.querySelectorAll('#flyout-stifte .flyout-btn'),
 
-  // Farbpalette
   farbDots:          document.querySelectorAll('.farb-dot'),
 
-  // Radierer (eigener Button)
   btnRadierer:       document.getElementById('btn-radierer'),
 
-  // Verlauf
   btnUndo:           document.getElementById('btn-undo'),
   btnRedo:           document.getElementById('btn-redo'),
   btnSeiteLeeren:    document.getElementById('btn-seite-leeren'),
 
-  // Scroll-Modus
   btnModusWechsel:   document.getElementById('btn-modus-wechsel'),
 
-  // Fokus + Laser Untermenü
   btnFokusAktiv:     document.getElementById('btn-fokus-aktiv'),
   iconFokusAktiv:    document.getElementById('icon-fokus-aktiv'),
   labelFokusAktiv:   document.getElementById('label-fokus-aktiv'),
   flyoutFokus:       document.getElementById('flyout-fokus'),
   flyoutFokusBtns:   document.querySelectorAll('#flyout-fokus .flyout-btn'),
 
-  // Fokus-Toolbar
   fokusToolbar:      document.getElementById('fokus-toolbar'),
   fokusToolbarLabel: document.getElementById('fokus-toolbar-label'),
   btnFokusSchliessen: document.getElementById('btn-fokus-schliessen'),
 
-  // Geodreieck
   btnGeodrei:        document.getElementById('btn-geodreieck'),
   geoWrapper:        document.getElementById('geodreieck-wrapper'),
-  geoSvg:            document.getElementById('geodreieck-svg'),
-  geoGrundlinie:     document.getElementById('geo-grundlinie'),
-  geoBasis:          document.getElementById('geo-basis'),
-  geoSenkrechte:     document.getElementById('geo-senkrechte'),
-  geoHilfslinien:    document.getElementById('geo-hilfslinien'),
-  geoWinkelkreis:    document.getElementById('geo-winkelkreis'),
+  geoBild:           document.getElementById('geodreieck-svg'),
   geoFuehrung:       document.getElementById('geo-fuehrungslinie'),
   geoDrehGriff:      document.getElementById('geo-dreh-griff'),
 
-  // Notizen
   btnNotizen:        document.getElementById('btn-notizen'),
   notizenOverlay:    document.getElementById('notizen-overlay'),
   notizenBackdrop:   document.getElementById('notizen-backdrop'),
@@ -225,7 +198,6 @@ const D = {
   btnNotizenLoeschen:    document.getElementById('btn-notizen-loeschen'),
   btnNotizenExportieren: document.getElementById('btn-notizen-exportieren'),
 
-  // Einstellungen
   btnEinstellungen:      document.getElementById('btn-einstellungen'),
   einstellungenOverlay:  document.getElementById('einstellungen-overlay'),
   einstellungenBackdrop: document.getElementById('einstellungen-backdrop'),
@@ -240,13 +212,11 @@ const D = {
   radiererAnzeige:       document.getElementById('radierer-anzeige'),
   pickerGeodrei:         document.getElementById('picker-geodreieck'),
 
-  // Spotlight
   spotlightOverlay:  document.getElementById('spotlight-overlay'),
   spotlightFenster:  document.getElementById('spotlight-fenster'),
   spotlightMaske:    document.getElementById('spotlight-maske'),
   spotGriffe:        null,
 
-  // Zoom
   zoomSteuerung:     document.getElementById('zoom-steuerung'),
   btnZoomPlus:       document.getElementById('btn-zoom-plus'),
   btnZoomMinus:      document.getElementById('btn-zoom-minus'),
@@ -321,10 +291,6 @@ function base64ZuBytes(b64) {
   return out;
 }
 
-function hexZuRgb(hex) {
-  return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
-}
-
 function winkelZwischen(cx, cy, px, py) {
   return Math.atan2(py - cy, px - cx) * 180 / Math.PI;
 }
@@ -363,56 +329,87 @@ function themaLaden() {
 
 /* ═══════════════════════════════════════════════════════════════════
    6. FLYOUT-UNTERMENÜS
-   Ein Tippen öffnet/schließt das Flyout via CSS-Klasse.
-   Tippen auf einen Eintrag wählt ihn aus und schließt das Flyout.
-   Tippen außerhalb schließt alle Flyouts.
+   ─────────────────────────────────────────────────────────────────
+   FIX: Flyouts sind position:fixed. Die Funktion flyoutPositionieren()
+   berechnet die korrekte Position relativ zum auslösenden Button per
+   getBoundingClientRect() und setzt left/top direkt am Element.
+
+   Hintergrund: Safari/iOS ignoriert overflow-x:visible wenn das
+   Elternelement overflow-y:auto hat (CSS-Spec §overflow 3.2).
+   Alle position:absolute Kinder werden dann geclippt.
+   Mit position:fixed liegt das Flyout außerhalb des Scroll-Stacking-
+   Kontexts und ist immer sichtbar.
 ════════════════════════════════════════════════════════════════════ */
 
-/** Alle offenen Flyouts schließen. */
+/**
+ * Positioniert ein Flyout-Element (position:fixed) neben dem auslösenden Button.
+ * @param {HTMLElement} flyout  – das Flyout-Element
+ * @param {HTMLElement} button  – der auslösende Button
+ */
+function flyoutPositionieren(flyout, button) {
+  // Flyout kurz sichtbar machen um seine Größe zu messen
+  flyout.style.visibility = 'hidden';
+  flyout.style.display = 'flex';
+
+  const btnRect     = button.getBoundingClientRect();
+  const flyoutB     = flyout.offsetWidth;
+  const flyoutH     = flyout.offsetHeight;
+  const sidebarSeite = D.body.dataset.sidebar || 'right';
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let left, top;
+
+  if (sidebarSeite === 'right') {
+    // Sidebar rechts → Flyout öffnet nach LINKS vom Button
+    left = btnRect.left - flyoutB - 6;
+  } else {
+    // Sidebar links → Flyout öffnet nach RECHTS vom Button
+    left = btnRect.right + 6;
+  }
+
+  // Vertikal: Flyout auf Höhe des Buttons zentrieren
+  top = btnRect.top + (btnRect.height / 2) - (flyoutH / 2);
+
+  // Viewport-Grenzen einhalten
+  top  = Math.max(8, Math.min(top,  vh - flyoutH - 8));
+  left = Math.max(8, Math.min(left, vw - flyoutB - 8));
+
+  flyout.style.left       = `${left}px`;
+  flyout.style.top        = `${top}px`;
+  flyout.style.visibility = 'visible';
+}
+
 function flyoutsSchliessen() {
-  // Wir nutzen Klassenübergaben statt harter Style-Injections
-  D.flyoutStifte.classList.remove('offen');
-  D.flyoutFokus.classList.remove('offen');
-  
-  // Fallback, falls du die Sichtbarkeit im CSS noch über style.display absicherst:
   D.flyoutStifte.style.display = 'none';
   D.flyoutFokus.style.display  = 'none';
-  
   D.btnStiftAktiv.setAttribute('aria-expanded', 'false');
   D.btnFokusAktiv.setAttribute('aria-expanded', 'false');
   Z.offenesFlyout = null;
 }
 
-/** Stifte-Flyout umschalten. */
 function stiftFlyoutUmschalten() {
   if (Z.offenesFlyout === 'stifte') {
     flyoutsSchliessen();
   } else {
     flyoutsSchliessen();
-    D.flyoutStifte.classList.add('offen');
-    D.flyoutStifte.style.display = 'flex'; // Sorgt für die korrekte Flex-Ausrichtung der Buttons
+    flyoutPositionieren(D.flyoutStifte, D.btnStiftAktiv);
     D.btnStiftAktiv.setAttribute('aria-expanded', 'true');
     Z.offenesFlyout = 'stifte';
   }
 }
 
-/** Fokus-Flyout umschalten. */
 function fokusFlyoutUmschalten() {
   if (Z.offenesFlyout === 'fokus') {
     flyoutsSchliessen();
   } else {
     flyoutsSchliessen();
-    D.flyoutFokus.classList.add('offen');
-    D.flyoutFokus.style.display = 'flex'; // Sorgt für die korrekte Flex-Ausrichtung der Buttons
+    flyoutPositionieren(D.flyoutFokus, D.btnFokusAktiv);
     D.btnFokusAktiv.setAttribute('aria-expanded', 'true');
     Z.offenesFlyout = 'fokus';
   }
 }
 
-/**
- * SVG-Icons für die Werkzeuge als HTML-Strings.
- * Wird genutzt um den Haupt-Button der Stift-Gruppe zu aktualisieren.
- */
 const WERKZEUG_ICONS = {
   'stift-duenn': {
     svg: `<path d="M19 3l2 2-12.5 12.5L5 18l.5-3.5L19 3z" stroke-width="1.3"/>
@@ -456,16 +453,11 @@ const FOKUS_ICONS = {
   },
 };
 
-/**
- * Haupt-Button des Stifte-Flyouts aktualisieren (Icon + Label).
- * @param {string} werkzeug
- */
 function stiftButtonAktualisieren(werkzeug) {
   const info = WERKZEUG_ICONS[werkzeug];
   if (!info) return;
   D.iconStiftAktiv.innerHTML = info.svg;
   D.labelStiftAktiv.textContent = info.label;
-  // Flyout-Buttons: aktiven markieren
   D.flyoutStiftBtns.forEach(b => {
     const a = b.dataset.werkzeug === werkzeug;
     b.classList.toggle('aktiv', a);
@@ -473,17 +465,12 @@ function stiftButtonAktualisieren(werkzeug) {
   });
 }
 
-/**
- * Haupt-Button des Fokus-Flyouts aktualisieren.
- * @param {string} modus – 'oval'|'rechteck'|'laser'|'aus'
- */
 function fokusButtonAktualisieren(modus) {
   const info = FOKUS_ICONS[modus];
   if (info) {
     D.iconFokusAktiv.innerHTML = info.svg;
     D.labelFokusAktiv.textContent = info.label;
   } else {
-    // 'aus': Standard-Icon (Spotlight-Kreis)
     D.iconFokusAktiv.innerHTML = `
       <circle cx="12" cy="12" r="4"/>
       <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
@@ -493,7 +480,6 @@ function fokusButtonAktualisieren(modus) {
   }
   D.btnFokusAktiv.setAttribute('aria-pressed', modus !== 'aus' ? 'true' : 'false');
   D.btnFokusAktiv.classList.toggle('aktiv', modus !== 'aus');
-  // Flyout-Buttons markieren
   D.flyoutFokusBtns.forEach(b => {
     const a = b.dataset.fokus === modus;
     b.classList.toggle('aktiv', a);
@@ -501,15 +487,9 @@ function fokusButtonAktualisieren(modus) {
   });
 }
 
-/** Fokus-Modus setzen (oval / rechteck / laser / aus). */
 function fokusModusSetzen(modus) {
-  // Vorherigen Modus beenden
-  if (Z.fokusModus === 'oval' || Z.fokusModus === 'rechteck') {
-    spotlightAus();
-  }
-  if (Z.fokusModus === 'laser') {
-    laserModeAus();
-  }
+  if (Z.fokusModus === 'oval' || Z.fokusModus === 'rechteck') spotlightAus();
+  if (Z.fokusModus === 'laser') laserModeAus();
 
   Z.fokusModus = modus;
   fokusButtonAktualisieren(modus);
@@ -529,10 +509,8 @@ function fokusModusSetzen(modus) {
   flyoutsSchliessen();
 }
 
-/** Fokus-Modus komplett ausschalten (aus dem Toolbar-Schließen-Button). */
-function fokusModusAus() {
-  fokusModusSetzen('aus');
-}
+function fokusModusAus() { fokusModusSetzen('aus'); }
+
 
 /* ═══════════════════════════════════════════════════════════════════
    7. EINSTELLUNGSMENÜ
@@ -557,6 +535,9 @@ function sidebarPositionSetzen(seite) {
   D.btnSidebarLinks.classList.toggle('aktiv',  seite === 'left');
   D.btnSidebarRechts.setAttribute('aria-pressed', seite === 'right' ? 'true' : 'false');
   D.btnSidebarLinks.setAttribute('aria-pressed',  seite === 'left'  ? 'true' : 'false');
+  // Flyout-Position nach Seitenwechsel neu berechnen falls offen
+  if (Z.offenesFlyout === 'stifte') flyoutPositionieren(D.flyoutStifte, D.btnStiftAktiv);
+  if (Z.offenesFlyout === 'fokus')  flyoutPositionieren(D.flyoutFokus,  D.btnFokusAktiv);
 }
 function einstellungenInit() {
   D.btnEinstellungen.addEventListener('click', () =>
@@ -580,8 +561,10 @@ function einstellungenInit() {
     if (Z.werkzeug === 'radierer') Z.strichbreite = KONFIGURATION.RADIERER_PX;
   });
   D.pickerGeodrei.addEventListener('input', () => {
-    KONFIGURATION.GEO_FARBE = D.pickerGeodrei.value;
-    geodreieckZeichnen();
+    // Hinweis: Das Geodreieck ist jetzt ein PNG-Foto ohne programmierbare
+    // Farbe. Der Picker bleibt in der UI als Platzhalter für zukünftige
+    // Tönungs-Filter, hat aktuell aber keine Wirkung.
+    toast('Geodreieck-Farbe wird beim Foto-Layout nicht unterstützt.', 'info', 2200);
   });
 }
 
@@ -674,7 +657,6 @@ function notizenInit() {
    9. SIDEBAR-LOGIK
 ════════════════════════════════════════════════════════════════════ */
 function werkzeugWaehlen(name) {
-  // Wenn Laser-Modus aktiv und anderes Werkzeug gewählt → Laser-Modus beenden
   if (Z.fokusModus === 'laser' && name !== 'laser') {
     Z.fokusModus = 'aus';
     fokusButtonAktualisieren('aus');
@@ -690,11 +672,9 @@ function werkzeugWaehlen(name) {
     'laser':       KONFIGURATION.LASER_PX,
   })[name] ?? KONFIGURATION.STIFT_DUENN_PX;
 
-  // Radierer-Button separat pflegen
   D.btnRadierer.classList.toggle('aktiv', name === 'radierer');
   D.btnRadierer.setAttribute('aria-pressed', name === 'radierer' ? 'true' : 'false');
 
-  // Stift-Button (Untermenü-Haupt-Button)
   if (['stift-duenn','stift-dick','textmarker'].includes(name)) {
     D.btnStiftAktiv.classList.add('aktiv');
     D.btnStiftAktiv.setAttribute('aria-pressed', 'true');
@@ -717,7 +697,6 @@ function farbeWaehlen(farbe) {
 }
 
 function sidebarInit() {
-  // Datei
   D.btnDateiLaden.addEventListener('click', () => D.dateiInput.click());
   D.btnStartLaden.addEventListener('click', () => D.dateiInput.click());
   D.dateiInput.addEventListener('change', e => {
@@ -726,10 +705,8 @@ function sidebarInit() {
     D.dateiInput.value = '';
   });
 
-  // Stifte-Flyout-Button
   D.btnStiftAktiv.addEventListener('click', stiftFlyoutUmschalten);
 
-  // Flyout-Stift-Optionen
   D.flyoutStiftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       werkzeugWaehlen(btn.dataset.werkzeug);
@@ -737,43 +714,30 @@ function sidebarInit() {
     });
   });
 
-  // Farbpalette
   D.farbDots.forEach(dot => {
     dot.addEventListener('click', () => { if (dot.dataset.farbe) farbeWaehlen(dot.dataset.farbe); });
   });
 
-  // Radierer (eigener Button)
   D.btnRadierer.addEventListener('click', () => werkzeugWaehlen('radierer'));
 
-  // Verlauf
   D.btnUndo.addEventListener('click',        undoAusfuehren);
   D.btnRedo.addEventListener('click',        redoAusfuehren);
   D.btnSeiteLeeren.addEventListener('click', seiteLeeren);
 
-  // Scroll-Modus
   D.btnModusWechsel.addEventListener('click', scrollModusUmschalten);
 
-  // Fokus + Laser Flyout
   D.btnFokusAktiv.addEventListener('click', fokusFlyoutUmschalten);
   D.flyoutFokusBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const modus = btn.dataset.fokus;
-      // Wenn gleicher Modus → ausschalten
       if (Z.fokusModus === modus) fokusModusSetzen('aus');
       else fokusModusSetzen(modus);
     });
   });
 
-  // Fokus-Toolbar Schließen
   D.btnFokusSchliessen.addEventListener('click', fokusModusAus);
-
-  // Geodreieck
   D.btnGeodrei.addEventListener('click', geodreieckUmschalten);
 
-  // Notizen
-  // (wird in notizenInit() registriert)
-
-  // Keyboard
   document.addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey) {
       if (e.key === 'z') { e.preventDefault(); undoAusfuehren(); }
@@ -792,13 +756,17 @@ function sidebarInit() {
   document.addEventListener('touchstart', e => {
     if (!Z.offenesFlyout) return;
     const ziel = e.target;
-    if (!ziel.closest('#gruppe-stifte') && !ziel.closest('#gruppe-fokus')) {
+    if (!ziel.closest('#gruppe-stifte') &&
+        !ziel.closest('#gruppe-fokus') &&
+        !ziel.closest('.flyout')) {
       flyoutsSchliessen();
     }
   }, { passive: true });
   document.addEventListener('mousedown', e => {
     if (!Z.offenesFlyout) return;
-    if (!e.target.closest('#gruppe-stifte') && !e.target.closest('#gruppe-fokus')) {
+    if (!e.target.closest('#gruppe-stifte') &&
+        !e.target.closest('#gruppe-fokus') &&
+        !e.target.closest('.flyout')) {
       flyoutsSchliessen();
     }
   });
@@ -830,14 +798,9 @@ function strichStarten(e, canvas) {
   e.preventDefault();
   Z.zeichnet = true;
 
-  // 1. Hole Standard-Mauskoordinaten
   let p = koordinaten(e, canvas);
-  
-  // 2. Falls das Geodreieck aktiv ist, nutze die korrigierten Client-Koordinaten für den Snap
   if (Z.geodreieckAktiv) {
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const snap = geodreieckSnap(clientX, clientY, canvas);
+    const snap = geodreieckSnap(e, canvas);
     if (snap) p = snap;
   }
   Z.letzterPunkt = p;
@@ -886,14 +849,9 @@ function strichBewegen(e, canvas) {
   if (!Z.zeichnet) return;
   e.preventDefault();
 
-  // 1. Hole Standard-Mauskoordinaten
   let p = koordinaten(e, canvas);
-  
-  // 2. Kanten-Snapping während der Bewegung anwenden
   if (Z.geodreieckAktiv) {
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const snap = geodreieckSnap(clientX, clientY, canvas);
+    const snap = geodreieckSnap(e, canvas);
     if (snap) p = snap;
   }
 
@@ -903,7 +861,6 @@ function strichBewegen(e, canvas) {
     offCtx.moveTo(Z.letzterPunkt.x, Z.letzterPunkt.y);
     offCtx.lineTo(p.x, p.y);
     offCtx.stroke();
-    // Preview auf Haupt-Canvas
     const ctx = canvas.getContext('2d');
     const seite = +canvas.closest('.seite-container').dataset.seite;
     const snap = Z.undoVerlauf[seite];
@@ -1113,194 +1070,235 @@ function seiteLeeren() {
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   14. GEODREIECK LOGIK (Unterkanten-basiert für PNG)
+   14. GEODREIECK (PNG-Basis)
+   ─────────────────────────────────────────────────────────────────
+   Statt eines selbstgezeichneten SVGs wird ein realistisches PNG-Bild
+   eines deutschen Schuldreiecks verwendet (icons/geodreieck.png).
+
+   Koordinatensystem des Wrappers:
+     - transform-origin: 50% 100% (Mitte der Unterkante = Drehpunkt)
+     - Bildbreite = 28cm reale Kantenlänge (volle PNG-Breite)
+     - Bildhöhe = Breite × GEO_SEITENVERHAELTNIS (0.5 → 2:1-Verhältnis)
+     - Spitze (90°-Winkelpunkt) liegt bei x = 50% der Bildbreite, y = 0
+     - Nullpunkt der Skala (für Snap-Berechnung) liegt bei
+       x = 50%, y = GEO_NULLPUNKT_Y_ANTEIL × Bildhöhe
+
+   Die drei Kanten für den Lineal-Snap werden aus diesen drei Punkten
+   berechnet:
+     Spitze      S = (B/2, 0)
+     Unten-Links UL = (0, H)
+     Unten-Rechts UR = (B, H)
+   (B = Bildbreite in px, H = Bildhöhe in px, im Client-Koordinatensystem
+   nach Skalierung/Rotation)
 ════════════════════════════════════════════════════════════════════ */
-
-// Hilfsobjekt für den globalen Zustand (falls nicht in Z definiert)
-if (!window.Z) window.Z = {};
-Z.geodreieckAktiv = false;
-Z.geoPos = { x: 300, y: 400 }; // Startposition des Nullpunkts
-Z.geoWinkel = 0;
-Z.geoSkalierung = 1;
-Z.geoDrag = null;
-
-// Brücke zu deinen DOM-Elementen schlagen
-const D = {
-  geoWrapper: document.getElementById('geo-wrapper'),
-  geoSvg: document.getElementById('geo-svg'),
-  geoDrehGriff: document.getElementById('geo-rotator'),
-  geoFuehrung: document.getElementById('geo-fuehrung'),
-  btnGeodrei: document.getElementById('btn-geodreieck') // Passe die ID ggf. an dein Menü an
-};
 
 function geodreieckAn() {
   Z.geodreieckAktiv = true;
   D.geoWrapper.style.display = 'block';
   D.geoWrapper.setAttribute('aria-hidden', 'false');
-  if(D.btnGeodrei) {
-    D.btnGeodrei.classList.add('aktiv');
-    D.btnGeodrei.setAttribute('aria-pressed', 'true');
-  }
+  D.btnGeodrei.classList.add('aktiv');
+  D.btnGeodrei.setAttribute('aria-pressed', 'true');
   geodreieckSkalieren();
   geodreieckTransformAnwenden();
+  toast('Geodreieck: Fläche = Verschieben · Dreh-Griff = Drehen', 'info', 3000);
 }
 
 function geodreieckAus() {
   Z.geodreieckAktiv = false;
   D.geoWrapper.style.display = 'none';
   D.geoWrapper.setAttribute('aria-hidden', 'true');
-  if(D.btnGeodrei) {
-    D.btnGeodrei.classList.remove('aktiv');
-    D.btnGeodrei.setAttribute('aria-pressed', 'false');
-  }
-  if(D.geoFuehrung) D.geoFuehrung.style.display = 'none';
+  D.btnGeodrei.classList.remove('aktiv');
+  D.btnGeodrei.setAttribute('aria-pressed', 'false');
+  D.geoFuehrung.setAttribute('display', 'none');
 }
 
 function geodreieckUmschalten() { Z.geodreieckAktiv ? geodreieckAus() : geodreieckAn(); }
 
+/** Skalierung: Bildbreite = GEO_CM_LAENGE × pxProCm × zoom */
 function geodreieckSkalieren() {
-  // Falls pxProCm bei dir existiert, sonst Standardwert nutzen
-  const pxProCm = (Z.pxProCm && Z.pxProCm[Z.aktiveSeite]) || 37.8; 
-  const zoom = Z.zoom || 1;
-  
-  // Das hochgeladene Dreieck zeigt 16cm Gesamtlänge (8 links, 8 rechts)
-  const cmLaenge = 16; 
-  const breite = cmLaenge * pxProCm * zoom;
-  const hoehe = breite * (280 / 560); // ViewBox-Verhältnis des PNGs
-  
-  Z.geoSkalierung = breite / 560;
-  D.geoSvg.style.width = `${breite}px`;
-  D.geoSvg.style.height = `${hoehe}px`;
+  const pxProCm = Z.pxProCm[Z.aktiveSeite] || (KONFIGURATION.PDF_SCALE * 72 / 2.54);
+  const breite  = KONFIGURATION.GEO_CM_LAENGE * pxProCm * Z.zoom;
+  const hoehe   = breite * KONFIGURATION.GEO_SEITENVERHAELTNIS;
+  Z.geoSkalierung = breite;  // aktuelle Breite in px (= px pro 28cm)
+  D.geoBild.style.width  = `${breite}px`;
+  D.geoBild.style.height = `${hoehe}px`;
 }
 
 function geodreieckTransformAnwenden() {
-  // Rotiert und verschiebt basierend auf dem Nullpunkt (Mitte der Unterkante)
-  D.geoWrapper.style.transform = `translate(${Z.geoPos.x}px, ${Z.geoPos.y}px) rotate(${Z.geoWinkel}deg)`;
+  // Drehpunkt = Mitte der Unterkante (transform-origin: 50% 100% am Wrapper)
+  D.geoWrapper.style.transform =
+    `translate(${Z.geoPos.x}px, ${Z.geoPos.y}px) rotate(${Z.geoWinkel}deg)`;
 }
 
 /**
- * Modernes Pointer-basiertes Event-Handling (behebt Maus- und Touch-Probleme)
+ * Snap: Gibt Canvas-Koordinaten zurück wenn Stift nahe einer Kante.
  */
-function geodreieckInit() {
-  const svg = D.geoSvg;
-
-  // 1. Überall anfassen zum Verschieben
-  svg.addEventListener('pointerdown', (e) => {
-    if (!Z.geodreieckAktiv) return;
-    if (e.target === D.geoDrehGriff || D.geoDrehGriff.contains(e.target)) return;
-    
-    e.preventDefault();
-    e.stopPropagation();
-    svg.setPointerCapture(e.pointerId);
-
-    Z.geoDrag = {
-      art: 'move',
-      startX: e.clientX,
-      startY: e.clientY,
-      startPos: { ...Z.geoPos }
-    };
-  });
-
-  svg.addEventListener('pointermove', (e) => {
-    if (!Z.geoDrag || Z.geoDrag.art !== 'move') return;
-    const dx = e.clientX - Z.geoDrag.startX;
-    const dy = e.clientY - Z.geoDrag.startY;
-    
-    Z.geoPos = {
-      x: Z.geoDrag.startPos.x + dx,
-      y: Z.geoDrag.startPos.y + dy
-    };
-    geodreieckTransformAnwenden();
-  });
-
-  // 2. Drehen am Griff oben
-  D.geoDrehGriff.addEventListener('pointerdown', (e) => {
-    if (!Z.geodreieckAktiv) return;
-    e.preventDefault();
-    e.stopPropagation();
-    D.geoDrehGriff.setPointerCapture(e.pointerId);
-
-    Z.geoDrag = {
-      art: 'rotate',
-      // Der Pivot-Drehpunkt ist exakt die aktuelle Position des Lineal-Nullpunkts auf dem Bildschirm
-      pivotX: Z.geoPos.x,
-      pivotY: Z.geoPos.y,
-      // Mathematischer Startwinkel-Offset ermitteln
-      startWinkel: Math.atan2(e.clientY - Z.geoPos.y, e.clientX - Z.geoPos.x) * (180 / Math.PI) - Z.geoWinkel
-    };
-  });
-
-  D.geoDrehGriff.addEventListener('pointermove', (e) => {
-    if (!Z.geoDrag || Z.geoDrag.art !== 'rotate') return;
-    
-    const aktuellerWinkelRad = Math.atan2(e.clientY - Z.geoDrag.pivotY, e.clientX - Z.geoDrag.pivotX);
-    const aktuellerWinkelDeg = aktuellerWinkelRad * (180 / Math.PI);
-    
-    // Da der Griff oben bei -90° liegt, korrigieren wir die Drehung für intuitive Bewegung
-    Z.geoWinkel = Math.round(aktuellerWinkelDeg - Z.geoDrag.startWinkel);
-    geodreieckTransformAnwenden();
-  });
-
-  // 3. Interaktionen sauber beenden
-  const pointerUpHandler = (e) => {
-    if (Z.geoDrag) {
-      Z.geoDrag = null;
-    }
-  };
-  
-  svg.addEventListener('pointerup', pointerUpHandler);
-  D.geoDrehGriff.addEventListener('pointerup', pointerUpHandler);
-}
-
-/**
- * Kanten-Snapping Logik für die Unterkante des neuen Klipart-Dreiecks
- */
-function geodreieckSnap(inputX, inputY, canvas) {
+function geodreieckSnap(e, canvas) {
   if (!Z.geodreieckAktiv) return null;
+  const client = clientKoord(e);
+  const kanten = geodreieckKantenClient();
+  const snapPx = KONFIGURATION.GEO_SNAP_PX;
+  let best = null, minDist = Infinity;
 
-  const rad = (Z.geoWinkel * Math.PI) / 180;
-  // Richtungsvektor entlang der Unterkante (Hypotenuse)
-  const dirX = Math.cos(rad);
-  const dirY = Math.sin(rad);
-
-  // Vektor vom Nullpunkt des Dreiecks zum Stift/Mauspunkt
-  const vX = inputX - Z.geoPos.x;
-  const vY = inputY - Z.geoPos.y;
-
-  // Projektion via Skalarprodukt
-  const t = vX * dirX + vY * dirY;
-
-  // Punkt auf der unendlichen Kanten-Geraden berechnen
-  const projX = Z.geoPos.x + t * dirX;
-  const projY = Z.geoPos.y + t * dirY;
-
-  // Abstand zur Kante messen
-  const abstand = Math.hypot(inputX - projX, inputY - projY);
-  
-  // Halbe Breite des Dreiecks auf dem Bildschirm im aktuellen Zoom bestimmen
-  const maxKantenReichweite = 280 * Z.geoSkalierung; 
-
-  // Fangbereich: Wenn näher als 24px an der Kante und innerhalb der physikalischen Lineal-Länge
-  if (abstand < 24 && Math.abs(t) <= maxKantenReichweite) {
-    if (D.geoFuehrung) D.geoFuehrung.style.display = 'inline';
-    
-    const rect = canvas.getBoundingClientRect();
-    const skalX = canvas.width / rect.width;
-    const skalY = canvas.height / rect.height;
-    
-    // Transformiert zurück in lokale Canvas-Koordinaten fürs Zeichnen
-    return { 
-      x: (projX - rect.left) * skalX, 
-      y: (projY - rect.top) * skalY 
-    };
+  for (const k of kanten) {
+    const proj = punktAufLinie(client, k.p1, k.p2);
+    const dist = Math.hypot(client.x-proj.x, client.y-proj.y);
+    if (dist < snapPx && dist < minDist) { minDist = dist; best = proj; }
   }
 
-  if (D.geoFuehrung) D.geoFuehrung.style.display = 'none';
+  if (best) {
+    D.geoFuehrung.setAttribute('display', 'inline');
+    D.geoFuehrung.setAttribute('x1', best.x);
+    D.geoFuehrung.setAttribute('y1', best.y);
+    D.geoFuehrung.setAttribute('x2', best.x);
+    D.geoFuehrung.setAttribute('y2', best.y);
+    const rect = canvas.getBoundingClientRect();
+    const skalX = canvas.width/rect.width, skalY = canvas.height/rect.height;
+    return { x: (best.x-rect.left)*skalX, y: (best.y-rect.top)*skalY };
+  }
+  D.geoFuehrung.setAttribute('display', 'none');
   return null;
 }
 
-// Nach dem Laden einmalig ausführen, um Listener zu binden
-document.addEventListener('DOMContentLoaded', geodreieckInit);
+/**
+ * Berechnet die drei Dreieckskanten in Client-(Bildschirm-)Koordinaten.
+ * Eckpunkte relativ zum Bild (vor Rotation):
+ *   Spitze (90°-Winkel oben):  (B/2, 0)
+ *   Unten links:               (0, H)
+ *   Unten rechts:               (B, H)
+ * Diese werden um den Drehpunkt (Mitte Unterkante = B/2, H) rotiert
+ * und an die Wrapper-Position (Z.geoPos) verschoben.
+ */
+function geodreieckKantenClient() {
+  const wrapRect = D.geoWrapper.getBoundingClientRect();
+  const B = D.geoBild.offsetWidth;
+  const H = D.geoBild.offsetHeight;
+  const winRad = Z.geoWinkel * Math.PI / 180;
+  const cos = Math.cos(winRad), sin = Math.sin(winRad);
+
+  // Drehpunkt = Mitte der Unterkante, im Bild-Koordinatensystem: (B/2, H)
+  const pivotX = B / 2, pivotY = H;
+
+  // Eckpunkte im Bild-Koordinatensystem
+  const eckenBild = [
+    { x: B / 2, y: 0 },  // Spitze (90°)
+    { x: 0,     y: H },  // Unten links
+    { x: B,     y: H },  // Unten rechts
+  ];
+
+  // Rotation um den Drehpunkt, dann Verschiebung zur Wrapper-Position.
+  // wrapRect.left/top entspricht der oberen linken Ecke des UNROTIERTEN
+  // Wrappers; da CSS transform den Wrapper bereits rotiert hat, gibt
+  // getBoundingClientRect() die tatsächliche (gerenderte) Bounding-Box
+  // zurück – das reicht für Verschiebung nicht aus, da wir die Rotation
+  // selbst nachvollziehen müssen. Wir berechnen daher direkt aus
+  // Z.geoPos (unrotierter Ursprung oben-links) + Rotation um den Pivot.
+  const ursprungX = Z.geoPos.x;
+  const ursprungY = Z.geoPos.y;
+
+  const punkte = eckenBild.map(p => {
+    // Punkt relativ zum Drehpunkt
+    const rx = p.x - pivotX;
+    const ry = p.y - pivotY;
+    // Rotieren
+    const gx = rx * cos - ry * sin;
+    const gy = rx * sin + ry * cos;
+    // Zurück verschieben: Drehpunkt liegt bei (ursprungX+pivotX, ursprungY+pivotY)
+    return {
+      x: ursprungX + pivotX + gx,
+      y: ursprungY + pivotY + gy,
+    };
+  });
+
+  return [
+    { p1: punkte[0], p2: punkte[1], name: 'kathete-links'  },
+    { p1: punkte[1], p2: punkte[2], name: 'basis'          },
+    { p1: punkte[0], p2: punkte[2], name: 'kathete-rechts' },
+  ];
+}
+
+function geodreieckInit() {
+  const bild = D.geoBild;
+
+  // Bildfläche: Verschieben
+  bild.addEventListener('touchstart', e => {
+    if (!Z.geodreieckAktiv) return;
+    if (e.target === D.geoDrehGriff || D.geoDrehGriff.contains(e.target)) return;
+    e.preventDefault(); e.stopPropagation();
+    const t = e.touches[0];
+    Z.geoDrag = {
+      art: 'move', startX: t.clientX, startY: t.clientY,
+      startPos: { ...Z.geoPos },
+    };
+  }, { passive: false });
+
+  bild.addEventListener('mousedown', e => {
+    if (!Z.geodreieckAktiv) return;
+    if (e.target === D.geoDrehGriff || D.geoDrehGriff.contains(e.target)) return;
+    e.preventDefault(); e.stopPropagation();
+    Z.geoDrag = {
+      art: 'move', startX: e.clientX, startY: e.clientY,
+      startPos: { ...Z.geoPos },
+    };
+  });
+
+  // Dreh-Griff: Rotation um die Mitte der Unterkante
+  // (= transform-origin: 50% 100% des Wrappers)
+  function geoRotateStart(cx, cy) {
+    const wRect = D.geoWrapper.getBoundingClientRect();
+    // Pivot in Client-Koordinaten: horizontale Mitte, untere Kante
+    const pivotX = wRect.left + wRect.width / 2;
+    const pivotY = wRect.bottom;
+    Z.geoDrag = {
+      art: 'rotate', pivotX, pivotY,
+      // Offset: Winkel zwischen Dreh-Griff-Start und aktuellem geoWinkel
+      // (Griff sitzt oben an der Spitze, 90°-Versatz zur 0°-Achse ist
+      // bereits durch atan2 berücksichtigt, da wir relativ rechnen)
+      startWinkel: winkelZwischen(pivotX, pivotY, cx, cy) - Z.geoWinkel,
+    };
+  }
+
+  D.geoDrehGriff.addEventListener('touchstart', e => {
+    if (!Z.geodreieckAktiv) return;
+    e.preventDefault(); e.stopPropagation();
+    geoRotateStart(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: false });
+
+  D.geoDrehGriff.addEventListener('mousedown', e => {
+    if (!Z.geodreieckAktiv) return;
+    e.preventDefault(); e.stopPropagation();
+    geoRotateStart(e.clientX, e.clientY);
+  });
+
+  // Globale Move/End-Events
+  document.addEventListener('touchmove', e => {
+    if (!Z.geoDrag) return;
+    e.preventDefault();
+    _geoBewegen(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: false });
+
+  document.addEventListener('mousemove', e => {
+    if (!Z.geoDrag) return;
+    _geoBewegen(e.clientX, e.clientY);
+  });
+
+  document.addEventListener('touchend',  () => { Z.geoDrag = null; });
+  document.addEventListener('mouseup',   () => { Z.geoDrag = null; });
+}
+
+function _geoBewegen(cx, cy) {
+  if (!Z.geoDrag) return;
+  if (Z.geoDrag.art === 'move') {
+    const dx = cx - Z.geoDrag.startX, dy = cy - Z.geoDrag.startY;
+    Z.geoPos = { x: Z.geoDrag.startPos.x + dx, y: Z.geoDrag.startPos.y + dy };
+  } else if (Z.geoDrag.art === 'rotate') {
+    Z.geoWinkel = Math.round(
+      winkelZwischen(Z.geoDrag.pivotX, Z.geoDrag.pivotY, cx, cy) - Z.geoDrag.startWinkel
+    );
+  }
+  geodreieckTransformAnwenden();
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════
    15. SPOTLIGHT
@@ -1370,7 +1368,10 @@ function spotlightInit() {
     });
   });
   const fen = D.spotlightFenster;
-  const innen = (x,y)=>{const f=Z.spotFenster,r=22;return x>f.x+r&&x<f.x+f.b-r&&y>f.y+r&&y<f.y+f.h-r;};
+  const innen = (x,y) => {
+    const f=Z.spotFenster,r=22;
+    return x>f.x+r&&x<f.x+f.b-r&&y>f.y+r&&y<f.y+f.h-r;
+  };
   fen.addEventListener('touchstart', e => {
     if (Z.fokusModus!=='oval'&&Z.fokusModus!=='rechteck') return;
     if (e.target.classList.contains('spot-griff')) return;
@@ -1383,54 +1384,45 @@ function spotlightInit() {
     if (innen(e.clientX,e.clientY)) spotDragStart('mitte',e.clientX,e.clientY);
   });
   document.addEventListener('touchmove', e => {
-    if ((Z.fokusModus==='oval'||Z.fokusModus==='rechteck')&&Z.spotGriff) { e.preventDefault(); spotZiehen(e.touches[0].clientX,e.touches[0].clientY); }
+    if ((Z.fokusModus==='oval'||Z.fokusModus==='rechteck')&&Z.spotGriff) {
+      e.preventDefault(); spotZiehen(e.touches[0].clientX,e.touches[0].clientY);
+    }
   }, { passive: false });
-  document.addEventListener('touchend', ()=>{ Z.spotGriff=null; Z.spotDragStart=null; }, { passive: false });
-  document.addEventListener('mousemove', e=>{ if((Z.fokusModus==='oval'||Z.fokusModus==='rechteck')&&Z.spotGriff) spotZiehen(e.clientX,e.clientY); });
-  document.addEventListener('mouseup', ()=>{ Z.spotGriff=null; Z.spotDragStart=null; });
+  document.addEventListener('touchend', () => { Z.spotGriff=null; Z.spotDragStart=null; }, { passive: false });
+  document.addEventListener('mousemove', e => {
+    if((Z.fokusModus==='oval'||Z.fokusModus==='rechteck')&&Z.spotGriff) spotZiehen(e.clientX,e.clientY);
+  });
+  document.addEventListener('mouseup', () => { Z.spotGriff=null; Z.spotDragStart=null; });
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   16. ZOOM (inkl. Scroll-Fix für linken Rand)
-
-   Problem: Bei transform-origin:top center und overflow:auto
-   war der linke Rand nicht erreichbar weil der skalierte Inhalt
-   zentriert und nach links "weggeschoben" wurde.
-
-   Lösung: transform-origin:top left + margin-basierte Zentrierung.
-   - zoom-scaler bekommt transform-origin: top left
-   - Die Zentrierung erfolgt per margin-left: max(0, (viewportBreite - skalierteBreite)/2)
-   - Beim Zoomen wird margin-left per JS neu gesetzt
-   - zoom-wrapper hat overflow:auto immer aktiv
+   16. ZOOM
 ════════════════════════════════════════════════════════════════════ */
 function zoomSetzen(n) {
   Z.zoom = Math.min(KONFIGURATION.ZOOM_MAX, Math.max(KONFIGURATION.ZOOM_MIN, n));
-
-  // transform-origin: top left → Skalierung von der linken oberen Ecke
-  D.zoomScaler.style.transform = `scale(${Z.zoom})`;
+  D.zoomScaler.style.transform       = `scale(${Z.zoom})`;
   D.zoomScaler.style.transformOrigin = 'top left';
 
-  // Zentrierung: wenn skalierter Inhalt schmaler als Viewport → zentrieren
-  // Wenn breiter → kein margin, scrollen möglich
-  const vpBreite    = D.zoomWrapper.clientWidth;
-  const containerB  = D.pdfContainer.scrollWidth || vpBreite;
-  const skaliert    = containerB * Z.zoom;
-  const marginLeft  = Math.max(0, (vpBreite - skaliert) / 2);
+  const vpBreite   = D.zoomWrapper.clientWidth;
+  const containerB = D.pdfContainer.scrollWidth || vpBreite;
+  const skaliert   = containerB * Z.zoom;
+  const marginLeft = Math.max(0, (vpBreite - skaliert) / 2);
   D.zoomScaler.style.marginLeft = `${marginLeft}px`;
 
-  // Höhe des Scalers explizit setzen damit der Wrapper korrekt scrollt
   const containerH = D.pdfContainer.scrollHeight || 600;
   D.zoomScaler.style.height = `${containerH * Z.zoom}px`;
 
   D.zoomAnzeige.textContent = `${Math.round(Z.zoom * 100)}%`;
 
-  // Geodreieck neu skalieren
   if (Z.geodreieckAktiv) geodreieckSkalieren();
+
+  // Offene Flyouts neu positionieren (falls sichtbar)
+  if (Z.offenesFlyout === 'stifte') flyoutPositionieren(D.flyoutStifte, D.btnStiftAktiv);
+  if (Z.offenesFlyout === 'fokus')  flyoutPositionieren(D.flyoutFokus,  D.btnFokusAktiv);
 }
 
 function zoomZentrierungAktualisieren() {
-  // Wird nach PDF-Ladevorgang aufgerufen wenn Container-Breite bekannt
   if (D.pdfContainer.style.display !== 'none') zoomSetzen(Z.zoom);
 }
 
@@ -1446,20 +1438,27 @@ function zoomInit() {
   D.btnZoomMinus.addEventListener('click', () => zoomSetzen(Z.zoom-KONFIGURATION.ZOOM_SCHRITT));
   D.btnZoomReset.addEventListener('click', () => zoomSetzen(1.0));
 
-  D.zoomWrapper.addEventListener('touchstart', e => { if (e.touches.length===2) Z.pinch=null; }, { passive: false });
+  D.zoomWrapper.addEventListener('touchstart', e => {
+    if (e.touches.length===2) Z.pinch=null;
+  }, { passive: false });
   D.zoomWrapper.addEventListener('touchmove', e => {
     if (e.touches.length===2&&Z.modus==='zeichnen') { e.preventDefault(); pinchBewegen(e); }
   }, { passive: false });
-  D.zoomWrapper.addEventListener('touchend', ()=>{ if(Z.pinch) Z.pinch=null; }, { passive:true });
+  D.zoomWrapper.addEventListener('touchend', () => { if(Z.pinch) Z.pinch=null; }, { passive:true });
   D.zoomWrapper.addEventListener('wheel', e => {
-    if (e.ctrlKey||e.metaKey) { e.preventDefault(); zoomSetzen(Z.zoom+(e.deltaY>0?-KONFIGURATION.ZOOM_SCHRITT:KONFIGURATION.ZOOM_SCHRITT)); }
+    if (e.ctrlKey||e.metaKey) {
+      e.preventDefault();
+      zoomSetzen(Z.zoom+(e.deltaY>0?-KONFIGURATION.ZOOM_SCHRITT:KONFIGURATION.ZOOM_SCHRITT));
+    }
   }, { passive: false });
 
-  // Fensterbreiten-Änderung: Zentrierung neu berechnen
   window.addEventListener('resize', () => {
     zoomZentrierungAktualisieren();
     laserCanvasAnpassen();
     if (Z.geodreieckAktiv) geodreieckSkalieren();
+    // Flyouts neu positionieren
+    if (Z.offenesFlyout === 'stifte') flyoutPositionieren(D.flyoutStifte, D.btnStiftAktiv);
+    if (Z.offenesFlyout === 'fokus')  flyoutPositionieren(D.flyoutFokus,  D.btnFokusAktiv);
   });
 }
 
@@ -1490,10 +1489,8 @@ async function pdfLaden(datei) {
     }
 
     D.zoomSteuerung.style.display = 'flex';
-    // Zentrierung nach Laden
     requestAnimationFrame(zoomZentrierungAktualisieren);
-    // Geodreieck kalibrieren
-    if (Z.geodreieckAktiv) { geodreieckSkalieren(); geodreieckZeichnen(); }
+    if (Z.geodreieckAktiv) { geodreieckSkalieren(); }
     toast(`„${datei.name}" geladen (${Z.seitenAnzahl} Seiten)`, 'erfolg');
   } catch (err) {
     console.error('[EduLayer] PDF-Ladefehler:', err);
@@ -1531,8 +1528,8 @@ async function pdfSeiteRendern(nr) {
   await seite.render({canvasContext:pdfC.getContext('2d'),viewport}).promise;
   zeichenListeners(zC);
 
-  new IntersectionObserver(ee=>{
-    ee.forEach(e=>{ if(e.isIntersecting&&e.intersectionRatio>=0.4) Z.aktiveSeite=nr; });
+  new IntersectionObserver(ee => {
+    ee.forEach(e => { if(e.isIntersecting&&e.intersectionRatio>=0.4) Z.aktiveSeite=nr; });
   },{root:D.zoomWrapper,threshold:0.4}).observe(cont);
 }
 
@@ -1590,7 +1587,7 @@ function swRegistrieren() {
    20. APP-START
 ════════════════════════════════════════════════════════════════════ */
 function appStart() {
-  console.log('[EduLayer] v6 startet…');
+  console.log('[EduLayer] v6.1 startet…');
 
   laserCanvasAnpassen();
   themaLaden();
@@ -1619,13 +1616,13 @@ function appStart() {
   document.addEventListener('touchmove', e=>{
     const ziel=e.target;
     const erlaubt=
-      ziel.closest('.zoom-wrapper')     ||
-      ziel.closest('.sidebar')          ||
-      ziel.closest('.spotlight-overlay')||
-      ziel.closest('.zoom-steuerung')   ||
-      ziel.closest('.fokus-toolbar')    ||
+      ziel.closest('.zoom-wrapper')      ||
+      ziel.closest('.sidebar')           ||
+      ziel.closest('.spotlight-overlay') ||
+      ziel.closest('.zoom-steuerung')    ||
+      ziel.closest('.fokus-toolbar')     ||
       ziel.closest('.einstellungen-panel')||
-      ziel.closest('.notizen-panel')    ||
+      ziel.closest('.notizen-panel')     ||
       ziel.closest('.geodreieck-wrapper')||
       ziel.closest('.flyout');
     if(!erlaubt) e.preventDefault();
@@ -1637,10 +1634,12 @@ function appStart() {
       laserCanvasAnpassen();
       zoomZentrierungAktualisieren();
       if(Z.geodreieckAktiv) geodreieckSkalieren();
+      if(Z.offenesFlyout==='stifte') flyoutPositionieren(D.flyoutStifte, D.btnStiftAktiv);
+      if(Z.offenesFlyout==='fokus')  flyoutPositionieren(D.flyoutFokus,  D.btnFokusAktiv);
     }, 350);
   });
 
-  console.log('[EduLayer] v6 bereit.');
+  console.log('[EduLayer] v6.1 bereit.');
 }
 
 if (document.readyState==='loading') {
