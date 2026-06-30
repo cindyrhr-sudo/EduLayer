@@ -60,7 +60,7 @@ const KONFIGURATION = {
   // Spitze (90°-Winkel) liegt bei x=50%, y=0.
   GEO_SEITENVERHAELTNIS: 0.5,  // Höhe / Breite des PNGs
   GEO_NULLPUNKT_Y_ANTEIL: 0.90, // Y-Position des Nullpunkts relativ zur Bildhöhe
-  GEO_CM_LAENGE:     20,   // Basislinie (volle Bildbreite) in cm
+  GEO_CM_LAENGE:     28,   // Basislinie (volle Bildbreite) in cm
   GEO_SNAP_PX:       20,
   GEO_FARBE:         '#64c8ff',
 
@@ -213,6 +213,8 @@ const D = {
   radiererAnzeige:       document.getElementById('radierer-anzeige'),
   sliderGeoKalibrierung:  document.getElementById('slider-geo-kalibrierung'),
   geoKalibrierungAnzeige: document.getElementById('geo-kalibrierung-anzeige'),
+  sliderPdfTransparenz:   document.getElementById('slider-pdf-transparenz'),
+  pdfTransparenzAnzeige:  document.getElementById('pdf-transparenz-anzeige'),
 
   spotlightOverlay:  document.getElementById('spotlight-overlay'),
   spotlightFenster:  document.getElementById('spotlight-fenster'),
@@ -338,6 +340,18 @@ function geoKalibrierungLaden() {
   Z.geoKalibrierung = prozent / 100;
   D.sliderGeoKalibrierung.value = prozent;
   D.geoKalibrierungAnzeige.textContent = `${prozent} %`;
+}
+
+/** Gespeicherte PDF-Transparenz laden (Default 100% = voll deckend). */
+function pdfTransparenzLaden() {
+  let prozent = 100;
+  try {
+    const gespeichert = localStorage.getItem('edulayer-pdf-transparenz');
+    if (gespeichert) prozent = parseFloat(gespeichert);
+  } catch(_) {}
+  D.sliderPdfTransparenz.value = prozent;
+  D.pdfTransparenzAnzeige.textContent = `${prozent} %`;
+  D.pdfContainer.style.opacity = prozent / 100;
 }
 
 
@@ -580,6 +594,12 @@ function einstellungenInit() {
     D.geoKalibrierungAnzeige.textContent = `${prozent} %`;
     try { localStorage.setItem('edulayer-geo-kalibrierung', String(prozent)); } catch(_) {}
     if (Z.geodreieckAktiv) geodreieckSkalieren();
+  });
+  D.sliderPdfTransparenz.addEventListener('input', () => {
+    const prozent = +D.sliderPdfTransparenz.value;
+    D.pdfContainer.style.opacity = prozent / 100;
+    D.pdfTransparenzAnzeige.textContent = `${prozent} %`;
+    try { localStorage.setItem('edulayer-pdf-transparenz', String(prozent)); } catch(_) {}
   });
 }
 
@@ -1703,6 +1723,7 @@ function appStart() {
   laserCanvasAnpassen();
   themaLaden();
   geoKalibrierungLaden();
+  pdfTransparenzLaden();
 
   sidebarInit();
   einstellungenInit();
