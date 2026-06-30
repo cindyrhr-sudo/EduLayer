@@ -480,7 +480,15 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
    Bildverhältnis 2:1 (1280×640px), Spitze (90°) bei x=50%/y=0,
    Nullpunkt der Skala bei x=50%, Unterkante bei y=100%.
    Drehpunkt = Mitte der Unterkante (transform-origin: 50% 100%).
-   Gesamte Fläche greifbar (cursor:move), Dreh-Griff oben an der Spitze.
+
+   WICHTIG – Move-Handle statt "ganze Fläche greifbar":
+   Damit man an JEDER Kante (auch direkt an den Katheten, ohne
+   Toleranz-Lücke) zeichnen kann, fängt das Geodreieck-Bild selbst
+   KEINE Klicks mehr ab (pointer-events:none durchgängig). Stattdessen
+   gibt es einen eigenen, kleinen, klar sichtbaren Verschiebe-Knopf in
+   der Mitte der Fläche. Nur dieser löst "Verschieben" aus. Alles
+   andere auf der Fläche – auch direkt auf der Kante – reicht das
+   Event ungehindert ans Zeichen-Canvas durch.
 ════════════════════════════════════════════════════════════════════ */
 .geodreieck-wrapper {
   position: absolute;
@@ -490,38 +498,63 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   /* Der Drehpunkt liegt exakt in der Mitte der Unterkante (Nullpunkt: 50% X, 100% Y) */
   transform-origin: 50% 100%;
   touch-action: none;
-  /* WICHTIG: pointer-events:all auf dem WRAPPER (nicht auf dem Bild!).
-     So fängt der Wrapper Klicks ab, aber app.js entscheidet per
-     Hit-Test (geodreieckTreffer), ob es sich um "verschieben" (innen)
-     oder "an der Kante zeichnen" handelt (nahe Rand → Event wird per
-     pointerdown-Handler an das darunterliegende Canvas durchgereicht,
-     indem preventDefault/stopPropagation NICHT aufgerufen wird). */
-  pointer-events: all;
+  /* Der Wrapper selbst fängt nichts mehr ab – nur seine Kinder mit
+     pointer-events:all (Move-Handle, Dreh-Griff) reagieren. So bleibt
+     die komplette Bild-/Kantenfläche frei fürs Zeichnen. */
+  pointer-events: none;
 }
 .geodreieck-svg {
   width: 560px; /* Wird via JS dynamisch anhand von cm/Zoom skaliert */
   height: 280px;
   overflow: visible;
-  cursor: move;
   filter: drop-shadow(0 3px 12px rgba(0,0,0,0.3));
   /* HIER WIRD ES DURCHSICHTIG: 0.78 bedeutet 78% Sichtbarkeit, PDF scheint durch */
   opacity: 0.78;
   transition: opacity 0.2s ease;
-  /* WICHTIG: pointer-events:none als Basis! Das Bild darf NICHT die
-     gesamte rechteckige Bounding-Box für Klicks blockieren, sonst kann
-     entlang der Dreieckskanten nicht mehr auf dem darunterliegenden
-     Zeichen-Canvas gezeichnet werden (Snap-Funktion). Stattdessen wird
-     im JS bei jedem touchstart/mousedown per Hit-Test geprüft, ob der
-     Klick "innen" (= Geodreieck verschieben) oder "nahe einer Kante"
-     (= Event durchreichen, damit das Canvas zeichnen kann) liegt. */
+  /* Bild blockiert nie Klicks – Zeichnen funktioniert überall, auch
+     exakt auf der Kante. */
   pointer-events: none;
   -webkit-user-drag: none;
   user-select: none;
 }
-.geodreieck-svg:active {
-  /* Wird minimal transparenter, wenn man es verschiebt, für noch bessere Sicht */
-  opacity: 0.65;
+
+/* Verschiebe-Knopf: zentriert auf der Dreiecksfläche (etwas unterhalb
+   der geometrischen Mitte, damit er nicht mit der Mitte-Hilfslinie
+   des Geodreiecks kollidiert). Einzige Stelle, die "Verschieben"
+   auslöst. */
+.geo-move-griff {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.92);
+  border: 2px solid #333333;
+  color: #333333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: move;
+  pointer-events: all;
+  touch-action: none;
+  /* Position: horizontal mittig, vertikal bei ca. 62% der Bildhöhe
+     (unterhalb der 90°-Winkelmarkierung, in freier Fläche) – wird
+     zusätzlich per JS fein an die tatsächliche Bildgröße angepasst. */
+  top: 62%;
+  left: calc(50% - 20px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  z-index: 312;
+  opacity: 0.88;
+  transition: transform 80ms ease, opacity 120ms ease;
 }
+.geo-move-griff:hover  { opacity: 1; background: #ffffff; }
+.geo-move-griff:active { cursor: grabbing; transform: scale(0.93); opacity: 1; }
+.geo-move-griff svg {
+  width: 20px; height: 20px;
+  fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  pointer-events: none;
+}
+
 /* Der runde Dreh-Griff an der oberen Spitze */
 .geo-dreh-griff {
   position: absolute;
@@ -571,6 +604,117 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   stroke-width: 2;
   stroke-dasharray: 6,4;
   stroke-linecap: round;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   12b. LINEAL (einfaches gerades Lineal, eigenständiges Werkzeug)
+   ─────────────────────────────────────────────────────────────────
+   Schlanker Balken mit cm-Skala, per CSS gezeichnet (kein PNG nötig).
+   Funktioniert nach demselben Prinzip wie das Geodreieck: ein
+   zentraler Move-Griff zum Verschieben, ein Dreh-Griff an einem Ende,
+   die gesamte Lineal-Kante selbst ist durchlässig fürs Zeichnen.
+   Drehpunkt = Mitte des Lineals (transform-origin: 50% 50%).
+════════════════════════════════════════════════════════════════════ */
+.lineal-wrapper {
+  position: absolute;
+  top: 160px;
+  left: 80px;
+  z-index: 290;
+  transform-origin: 50% 50%;
+  touch-action: none;
+  pointer-events: none;
+}
+.lineal-balken {
+  position: relative;
+  height: 64px;          /* feste optische Höhe, unabhängig vom Zoom */
+  width: 560px;           /* wird via JS auf reale cm-Breite skaliert */
+  background: rgba(255,255,255,0.55);
+  border: 1.5px solid rgba(40,40,40,0.65);
+  border-radius: 4px;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.3);
+  pointer-events: none;   /* Fläche blockiert nie Klicks – Kante bleibt frei */
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.lineal-skala {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.lineal-strich       { stroke: #222; stroke-linecap: round; }
+.lineal-strich--cm    { stroke-width: 1.4; }
+.lineal-strich--halb  { stroke-width: 1.0; }
+.lineal-strich--mm    { stroke-width: 0.6; }
+.lineal-zahl {
+  font-family: var(--schrift);
+  font-size: 11px;
+  font-weight: 600;
+  fill: #222;
+  text-anchor: middle;
+  pointer-events: none;
+  user-select: none;
+}
+
+.lineal-move-griff {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.92);
+  border: 2px solid #333333;
+  color: #333333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: move;
+  pointer-events: all;
+  touch-action: none;
+  top: calc(50% - 20px);
+  left: calc(50% - 20px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  z-index: 302;
+  opacity: 0.88;
+  transition: transform 80ms ease, opacity 120ms ease;
+}
+.lineal-move-griff:hover  { opacity: 1; background: #ffffff; }
+.lineal-move-griff:active { cursor: grabbing; transform: scale(0.93); opacity: 1; }
+.lineal-move-griff svg {
+  width: 20px; height: 20px;
+  fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.lineal-dreh-griff {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #333333;
+  color: #333333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  pointer-events: all;
+  touch-action: none;
+  /* Sitzt am rechten Ende, leicht außerhalb des Balkens */
+  top: calc(50% - 15px);
+  right: -38px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  z-index: 303;
+  transition: transform 80ms ease;
+}
+.lineal-dreh-griff:hover  { background: #f0f0f0; }
+.lineal-dreh-griff:active { cursor: grabbing; transform: scale(0.95); }
+.lineal-dreh-griff svg {
+  width: 14px; height: 14px;
+  fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  pointer-events: none;
 }
 
 
