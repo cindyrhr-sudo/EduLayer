@@ -119,6 +119,7 @@ const Z = {
   geoPos:          { x: 80, y: 120 },
   geoWinkel:       0,
   geoSkalierung:   1,
+  geoKalibrierung: 1.0,   // Korrekturfaktor (1.0 = 100%), via Einstellungen feinjustierbar
   geoDrag:         null,
   geoSnapAktiv:    false,
 
@@ -210,7 +211,8 @@ const D = {
   laserDauerAnzeige:     document.getElementById('laser-dauer-anzeige'),
   sliderRadierer:        document.getElementById('slider-radierer'),
   radiererAnzeige:       document.getElementById('radierer-anzeige'),
-  pickerGeodrei:         document.getElementById('picker-geodreieck'),
+  sliderGeoKalibrierung:  document.getElementById('slider-geo-kalibrierung'),
+  geoKalibrierungAnzeige: document.getElementById('geo-kalibrierung-anzeige'),
 
   spotlightOverlay:  document.getElementById('spotlight-overlay'),
   spotlightFenster:  document.getElementById('spotlight-fenster'),
@@ -324,6 +326,18 @@ function themaLaden() {
   let t = 'dunkel';
   try { t = localStorage.getItem('edulayer-thema') || 'dunkel'; } catch(_) {}
   themaWechseln(t);
+}
+
+/** Gespeicherten Geodreieck-Kalibrierungsfaktor laden (Default 100%). */
+function geoKalibrierungLaden() {
+  let prozent = 100;
+  try {
+    const gespeichert = localStorage.getItem('edulayer-geo-kalibrierung');
+    if (gespeichert) prozent = parseFloat(gespeichert);
+  } catch(_) {}
+  Z.geoKalibrierung = prozent / 100;
+  D.sliderGeoKalibrierung.value = prozent;
+  D.geoKalibrierungAnzeige.textContent = `${prozent} %`;
 }
 
 
@@ -560,11 +574,12 @@ function einstellungenInit() {
     D.radiererAnzeige.textContent = `${D.sliderRadierer.value} px`;
     if (Z.werkzeug === 'radierer') Z.strichbreite = KONFIGURATION.RADIERER_PX;
   });
-  D.pickerGeodrei.addEventListener('input', () => {
-    // Hinweis: Das Geodreieck ist jetzt ein PNG-Foto ohne programmierbare
-    // Farbe. Der Picker bleibt in der UI als Platzhalter für zukünftige
-    // Tönungs-Filter, hat aktuell aber keine Wirkung.
-    toast('Geodreieck-Farbe wird beim Foto-Layout nicht unterstützt.', 'info', 2200);
+  D.sliderGeoKalibrierung.addEventListener('input', () => {
+    const prozent = +D.sliderGeoKalibrierung.value;
+    Z.geoKalibrierung = prozent / 100;
+    D.geoKalibrierungAnzeige.textContent = `${prozent} %`;
+    try { localStorage.setItem('edulayer-geo-kalibrierung', String(prozent)); } catch(_) {}
+    if (Z.geodreieckAktiv) geodreieckSkalieren();
   });
 }
 
@@ -1114,12 +1129,42 @@ function geodreieckAus() {
 
 function geodreieckUmschalten() { Z.geodreieckAktiv ? geodreieckAus() : geodreieckAn(); }
 
-/** Skalierung: Bildbreite = GEO_CM_LAENGE × pxProCm × zoom */
+/**
+ * Skalierung: Bildbreite = GEO_CM_LAENGE × pxProCm × zoom
+ *
+ * MASS-GENAUIGKEIT (1cm Geodreieck = 1cm PDF):
+ * ─────────────────────────────────────────────────────────────────
+ * Das PDF wird mit canvas.width = canvas.style.width gerendert
+ * (1 interner Pixel = 1 CSS-Pixel, kein HiDPI-Downscaling). Damit
+ * gilt für jede Seite:
+ *   pxProCm[seite] = PDF_SCALE × 72 / 2.54   (CSS-Pixel pro cm bei Zoom=1)
+ * Diese Größe ist für ALLE Seiten identisch, solange sie mit dem
+ * gleichen PDF_SCALE gerendert werden (so im Code: pdfSeiteRendern()).
+ *
+ * Die sichtbare Größe des PDFs auf dem Bildschirm bei einem
+ * bestimmten Zoom ist: pxProCm × Z.zoom (weil .zoom-scaler mit
+ * transform:scale(Z.zoom) skaliert wird). Das Geodreieck wird mit
+ * exakt derselben Formel skaliert → beide Maßstäbe sind also
+ * rechnerisch identisch, unabhängig vom Zoom-Level.
+ *
+ * KALIBRIERUNG DES PNG-BILDES:
+ * Voraussetzung ist, dass das PNG selbst maßstabsgetreu ist:
+ *   - Die volle Bildbreite muss exakt GEO_CM_LAENGE (28cm) entsprechen
+ *   - Das Seitenverhältnis (Höhe/Breite) muss GEO_SEITENVERHAELTNIS
+ *     entsprechen (aktuell 0.5 → 2:1)
+ * Falls ein anderes PNG verwendet wird, das nicht exakt 28cm breit
+ * gezeichnet ist (z.B. weil es einen Rand/Schlagschatten enthält),
+ * muss GEO_CM_LAENGE und/oder GEO_SEITENVERHAELTNIS in KONFIGURATION
+ * entsprechend angepasst werden, damit 1cm im Bild wirklich 1cm auf
+ * dem Bildschirm ergibt. Am einfachsten testet man das, indem man
+ * das Geodreieck bei aktivem PDF auf eine bekannte 1cm-Markierung
+ * im Dokument legt und mit einem echten Lineal vergleicht.
+ */
 function geodreieckSkalieren() {
   const pxProCm = Z.pxProCm[Z.aktiveSeite] || (KONFIGURATION.PDF_SCALE * 72 / 2.54);
-  const breite  = KONFIGURATION.GEO_CM_LAENGE * pxProCm * Z.zoom;
+  const breite  = KONFIGURATION.GEO_CM_LAENGE * pxProCm * Z.zoom * Z.geoKalibrierung;
   const hoehe   = breite * KONFIGURATION.GEO_SEITENVERHAELTNIS;
-  Z.geoSkalierung = breite;  // aktuelle Breite in px (= px pro 28cm)
+  Z.geoSkalierung = breite;  // aktuelle Breite in px (= px pro 28cm, kalibriert)
   D.geoBild.style.width  = `${breite}px`;
   D.geoBild.style.height = `${hoehe}px`;
 }
@@ -1217,24 +1262,78 @@ function geodreieckKantenClient() {
   ];
 }
 
-function geodreieckInit() {
-  const bild = D.geoBild;
+/**
+ * Hit-Test: Liegt der Punkt (cx,cy) INNERHALB der Dreiecksfläche,
+ * mit Sicherheitsabstand zu allen drei Kanten (= Snap-Zone)?
+ *
+ * Das löst den Konflikt zwischen "Geodreieck verschieben" (auf der
+ * Fläche tippen) und "am Lineal entlang zeichnen" (nahe der Kante
+ * tippen): Nur Treffer im Inneren (außerhalb der Snap-Zone) lösen
+ * eine Verschiebung aus. Treffer nahe einer Kante oder außerhalb des
+ * Dreiecks werden NICHT abgefangen, damit das darunterliegende
+ * Zeichen-Canvas das Event bekommt und geodreieckSnap() greifen kann.
+ *
+ * Verfahren: Punkt-in-Dreieck-Test via Vorzeichen der Kreuzprodukte
+ * (baryzentrisch/cross-product), kombiniert mit Mindestabstand zu
+ * jeder Kante (= KONFIGURATION.GEO_SNAP_PX als Toleranzzone).
+ */
+function geodreieckTreffer(cx, cy) {
+  const kanten = geodreieckKantenClient();
+  const snapPx = KONFIGURATION.GEO_SNAP_PX;
 
-  // Bildfläche: Verschieben
-  bild.addEventListener('touchstart', e => {
+  // 1) Liegt der Punkt überhaupt innerhalb des Dreiecks?
+  //    Vorzeichen-Test: für jede Kante muss der Punkt auf derselben
+  //    Seite liegen wie der jeweils dritte (gegenüberliegende) Eckpunkt.
+  const [kLinks, kBasis, kRechts] = kanten;
+  const eckpunkte = [kLinks.p1, kLinks.p2, kRechts.p2]; // Spitze, UL, UR (eindeutig)
+
+  function vorzeichen(p1, p2, p3) {
+    return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+  }
+  const pPunkt = { x: cx, y: cy };
+  const d1 = vorzeichen(pPunkt, eckpunkte[0], eckpunkte[1]);
+  const d2 = vorzeichen(pPunkt, eckpunkte[1], eckpunkte[2]);
+  const d3 = vorzeichen(pPunkt, eckpunkte[2], eckpunkte[0]);
+  const hatNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+  const hatPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+  const imDreieck = !(hatNeg && hatPos);
+
+  if (!imDreieck) return false;
+
+  // 2) Mindestabstand zu ALLEN drei Kanten muss größer als die
+  //    Snap-Zone sein, sonst gilt der Klick als "Kante", nicht "Fläche".
+  for (const k of kanten) {
+    const proj = punktAufLinie(pPunkt, k.p1, k.p2);
+    const dist = Math.hypot(pPunkt.x - proj.x, pPunkt.y - proj.y);
+    if (dist < snapPx) return false;
+  }
+
+  return true;
+}
+
+function geodreieckInit() {
+  const wrapper = D.geoWrapper;
+
+  // Wrapper: Verschieben NUR wenn Treffer im Inneren der Dreiecksfläche
+  // (außerhalb der Snap-Zone an den Kanten). Sonst Event durchreichen,
+  // damit das Zeichen-Canvas darunter den Klick für das Snap-Zeichnen
+  // empfängt.
+  wrapper.addEventListener('touchstart', e => {
     if (!Z.geodreieckAktiv) return;
     if (e.target === D.geoDrehGriff || D.geoDrehGriff.contains(e.target)) return;
-    e.preventDefault(); e.stopPropagation();
     const t = e.touches[0];
+    if (!geodreieckTreffer(t.clientX, t.clientY)) return; // Kante/außerhalb → durchreichen
+    e.preventDefault(); e.stopPropagation();
     Z.geoDrag = {
       art: 'move', startX: t.clientX, startY: t.clientY,
       startPos: { ...Z.geoPos },
     };
   }, { passive: false });
 
-  bild.addEventListener('mousedown', e => {
+  wrapper.addEventListener('mousedown', e => {
     if (!Z.geodreieckAktiv) return;
     if (e.target === D.geoDrehGriff || D.geoDrehGriff.contains(e.target)) return;
+    if (!geodreieckTreffer(e.clientX, e.clientY)) return; // Kante/außerhalb → durchreichen
     e.preventDefault(); e.stopPropagation();
     Z.geoDrag = {
       art: 'move', startX: e.clientX, startY: e.clientY,
@@ -1529,7 +1628,19 @@ async function pdfSeiteRendern(nr) {
   zeichenListeners(zC);
 
   new IntersectionObserver(ee => {
-    ee.forEach(e => { if(e.isIntersecting&&e.intersectionRatio>=0.4) Z.aktiveSeite=nr; });
+    ee.forEach(e => {
+      if (e.isIntersecting && e.intersectionRatio >= 0.4) {
+        const seiteAlt = Z.aktiveSeite;
+        Z.aktiveSeite = nr;
+        // Falls die neue Seite eine andere px-pro-cm-Dichte hat
+        // (z.B. unterschiedliche Papierformate im selben PDF),
+        // muss das Geodreieck neu skaliert werden, damit 1cm
+        // weiterhin 1cm entspricht.
+        if (Z.geodreieckAktiv && seiteAlt !== nr) {
+          geodreieckSkalieren();
+        }
+      }
+    });
   },{root:D.zoomWrapper,threshold:0.4}).observe(cont);
 }
 
@@ -1591,6 +1702,7 @@ function appStart() {
 
   laserCanvasAnpassen();
   themaLaden();
+  geoKalibrierungLaden();
 
   sidebarInit();
   einstellungenInit();
