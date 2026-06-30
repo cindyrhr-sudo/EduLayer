@@ -1,7 +1,11 @@
 /*
   ╔══════════════════════════════════════════════════════════════════╗
-  ║  EduLayer – Stylesheet  (Version 6)                             ║
+  ║  EduLayer – Stylesheet  (Version 6.1)                           ║
   ╚══════════════════════════════════════════════════════════════════╝
+
+  ÄNDERUNGEN v6.1:
+  - Flyout: position:fixed (Fix für iOS overflow-clip-Bug)
+  - Geodreieck: realistisches deutsches Schuldreieck-SVG-Styling
 
   INHALTSVERZEICHNIS:
    1.  Thema-Variablen
@@ -10,12 +14,12 @@
    4.  Sidebar
    5.  Werkzeug-Buttons
    6.  Farbpalette
-   7.  Flyout-Untermenüs
+   7.  Flyout-Untermenüs  ← GEÄNDERT
    8.  Scroll-Modus
-   9.  Zoom-Wrapper & PDF (SCROLL-FIX)
+   9.  Zoom-Wrapper & PDF
   10.  Zoom-Steuerung
   11.  Start-Anzeige
-  12.  Geodreieck
+  12.  Geodreieck          ← GEÄNDERT
   13.  Fokus-Toolbar
   14.  Spotlight
   15.  Notizen-Panel
@@ -159,20 +163,23 @@ body {
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   4. SIDEBAR & FLYOUT-UNTERMENÜS
+   4. SIDEBAR
+   WICHTIG: overflow-x MUSS overflow:visible bleiben damit Flyouts
+   sichtbar sind – aber das ist in Safari/iOS unmöglich wenn
+   overflow-y nicht auch visible ist. Deshalb: Flyouts sind
+   position:fixed (JS setzt die Koordinaten). overflow-x spielt
+   dann keine Rolle mehr.
 ════════════════════════════════════════════════════════════════════ */
 .sidebar {
   width: var(--sidebar-breite); min-width: var(--sidebar-breite);
   height: 100%; background: var(--sidebar-bg);
   display: flex; flex-direction: column; align-items: center;
-  padding: 6px 0; 
-  /* FIX: Kein overflow-y: auto hier, damit Flyouts ausbrechen dürfen! */
-  overflow: visible; 
-  overscroll-behavior: none; 
-  z-index: 450; /* Sicher über dem Hauptbereich (300) und PDFs platziert */
-  flex-shrink: 0; touch-action: pan-y;
+  padding: 6px 0; overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: none; scrollbar-width: none;
+  z-index: 100; flex-shrink: 0; touch-action: pan-y;
   transition: background var(--t-normal);
 }
+.sidebar::-webkit-scrollbar { display: none; }
 
 [data-sidebar="right"] { flex-direction: row; }
 [data-sidebar="right"] .hauptbereich { order: 0; }
@@ -200,77 +207,13 @@ body {
   padding: var(--gruppe-pad) 0;
   border-bottom: 1px solid var(--sidebar-rand);
   flex-shrink: 0;
-  position: relative; /* Anker für die absolute Positionierung der Flyouts */
+  position: relative;
 }
 .werkzeug-gruppe:last-of-type { border-bottom: none; }
 .werkzeug-gruppe--unten {
   margin-top: auto;
   border-top: 1px solid var(--sidebar-rand); border-bottom: none;
   padding-bottom: 10px;
-}
-
-/* ─── FLYOUT POSITIONIERUNG & STRUKTUR ─── */
-
-.untermenu-wrapper {
-  position: relative;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-.flyout {
-  position: absolute;
-  top: 0;
-  background: var(--sidebar-bg);
-  border: 1px solid var(--sidebar-rand);
-  border-radius: 8px;
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-  z-index: 500; /* Liegt über der Sidebar selbst */
-  pointer-events: all;
-}
-
-/* Dynamische Ausrichtung je nachdem, wo die Sidebar andockt */
-[data-sidebar="right"] .flyout {
-  /* Wenn Sidebar rechts: Flyout klappt nach LINKS aus */
-  right: calc(var(--sidebar-breite) - 4px);
-}
-
-[data-sidebar="left"] .flyout {
-  /* Wenn Sidebar links: Flyout klappt nach RECHTS aus */
-  left: calc(var(--sidebar-breite) - 4px);
-}
-
-/* Flyout Buttons Design */
-.flyout-btn {
-  width: var(--btn-groesse);
-  height: var(--btn-groesse);
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: inherit;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 11px;
-  gap: 2px;
-  transition: background 0.15s ease;
-}
-
-.flyout-btn:hover,
-.flyout-btn[aria-pressed="true"] {
-  background: var(--btn-aktiv-bg, rgba(255,255,255,0.1));
-}
-
-.untermenu-indikator {
-  font-size: 9px;
-  opacity: 0.6;
-  margin-left: 2px;
 }
 
 
@@ -301,7 +244,6 @@ body {
   pointer-events: none; line-height: 1;
 }
 
-/* Kleines Dreieck zeigt: Untermenü vorhanden */
 .untermenu-indikator {
   position: absolute; bottom: 3px; right: 4px;
   font-size: 7px; color: var(--text-3);
@@ -349,7 +291,17 @@ body.scroll-modus #btn-modus-wechsel {
 
 /* ═══════════════════════════════════════════════════════════════════
    7. FLYOUT-UNTERMENÜS
-   Öffnen sich zur Seite (weg von der Sidebar) auf Tippen.
+   ─────────────────────────────────────────────────────────────────
+   KERNPROBLEM: Safari/iOS-Bug – wenn overflow-y ≠ visible gesetzt
+   ist (z.B. auto), ignoriert der Browser overflow-x: visible und
+   setzt es implizit auf auto (CSS overflow §3.2). Damit werden alle
+   absolut positionierten Kind-Elemente geclippt.
+
+   LÖSUNG: Flyouts sind position:FIXED, nicht absolute.
+   JS berechnet die genaue Position anhand des auslösenden Buttons
+   via getBoundingClientRect().
+   CSS legt nur Stil und Standardwerte fest – keine left/right/top
+   Koordinaten mehr hier.
 ════════════════════════════════════════════════════════════════════ */
 .untermenu-wrapper {
   position: relative;
@@ -358,29 +310,21 @@ body.scroll-modus #btn-modus-wechsel {
 }
 
 .flyout {
-  position: absolute;
-  /* Rechts der Sidebar: Flyout nach links */
-  top: 50%; transform: translateY(-50%);
+  /* FIXED statt absolute – damit kein Elternelement clippen kann */
+  position: fixed;
   background: var(--flyout-bg);
   border: 1px solid var(--flyout-rand);
   border-radius: 12px;
   padding: 6px;
   display: flex; flex-direction: column; gap: 4px;
-  z-index: 400;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-  animation: flyout-ein 150ms ease forwards;
+  /* Flyout liegt ÜBER allem – höher als Spotlight (500), Notizen (600),
+     Einstellungen (610), aber unter Toast (1000) */
+  z-index: 800;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.55), 0 1px 4px rgba(0,0,0,0.3);
   min-width: 68px;
-}
-
-/* Sidebar rechts: Flyout öffnet nach links */
-[data-sidebar="right"] .flyout {
-  right: calc(var(--sidebar-breite) + 4px);
-  left: auto;
-}
-/* Sidebar links: Flyout öffnet nach rechts */
-[data-sidebar="left"] .flyout {
-  left: calc(var(--sidebar-breite) + 4px);
-  right: auto;
+  /* Koordinaten werden per JS gesetzt (flyoutPositionieren) */
+  top: 0; left: 0;
+  animation: flyout-ein 150ms ease forwards;
 }
 
 /* Flyout-Button */
@@ -395,6 +339,7 @@ body.scroll-modus #btn-modus-wechsel {
   transition: background var(--t-schnell), color var(--t-schnell);
   font-size: 10px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.04em;
+  font-family: var(--schrift);
 }
 .flyout-btn svg {
   width: 22px; height: 22px;
@@ -410,8 +355,8 @@ body.scroll-modus #btn-modus-wechsel {
 .flyout-btn:active { transform: scale(0.94); }
 
 @keyframes flyout-ein {
-  from { opacity: 0; transform: translateY(-50%) scale(0.92); }
-  to   { opacity: 1; transform: translateY(-50%) scale(1); }
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 
@@ -420,13 +365,13 @@ body.scroll-modus #btn-modus-wechsel {
 ════════════════════════════════════════════════════════════════════ */
 .zoom-wrapper {
   width: 100%; height: 100%;
-  overflow: auto;                    /* IMMER scrollbar */
-  touch-action: none;                /* Standard: kein nativer Scroll */
+  overflow: auto;
+  touch-action: none;
   overscroll-behavior: none;
   position: relative;
 }
 body.scroll-modus .zoom-wrapper {
-  touch-action: pan-x pan-y;        /* Scroll-Modus: nativer Scroll */
+  touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
 }
 body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
@@ -434,25 +379,13 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
 
 /* ═══════════════════════════════════════════════════════════════════
    9. PDF-CONTAINER & SEITEN
-   SCROLL-FIX: transform-origin: top left + negativer Margin-Trick.
-   
-   Problem: Bei transform:scale() und transform-origin:top center
-   verschwindet der linke Rand beim Zoomen weil der skalierte Inhalt
-   zentriert wird, der Overflow-Container aber am Rand "klebt".
-   
-   Lösung:
-   - zoom-scaler hat transform-origin: top left
-   - Horizontal-Zentrierung über negativen margin-left + left-Offset
-   - Der Container kann nach links UND rechts gescrollt werden
 ════════════════════════════════════════════════════════════════════ */
 .zoom-scaler {
-  /* Transformation: scale() per JS, transform-origin top left */
   transform-origin: top left;
-  display: inline-flex;      /* Breite passt sich dem Inhalt an */
+  display: inline-flex;
   flex-direction: column;
   align-items: center;
   min-width: 100%;
-  /* Wird per JS: left gesetzt um Zentrierung bei Zoom zu steuern */
   position: relative;
 }
 
@@ -542,6 +475,12 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
 
 /* ═══════════════════════════════════════════════════════════════════
    12. GEODREIECK (PNG-Basis mit Plexiglas-Transparenz)
+   ─────────────────────────────────────────────────────────────────
+   Realistisches Foto/Render eines deutschen Schuldreiecks als PNG.
+   Bildverhältnis 2:1 (1280×640px), Spitze (90°) bei x=50%/y=0,
+   Nullpunkt der Skala bei x=50%, Unterkante bei y=100%.
+   Drehpunkt = Mitte der Unterkante (transform-origin: 50% 100%).
+   Gesamte Fläche greifbar (cursor:move), Dreh-Griff oben an der Spitze.
 ════════════════════════════════════════════════════════════════════ */
 .geodreieck-wrapper {
   position: absolute;
@@ -553,23 +492,23 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   touch-action: none;
   pointer-events: none;
 }
-
 .geodreieck-svg {
   width: 560px; /* Wird via JS dynamisch anhand von cm/Zoom skaliert */
   height: 280px;
   overflow: visible;
   cursor: move;
   filter: drop-shadow(0 3px 12px rgba(0,0,0,0.3));
-  /* HIER WIRD ES DURCHSICHTIG: 0.75 bedeutet 75% Sichtbarkeit, PDF scheint durch */
-  opacity: 0.78; 
+  /* HIER WIRD ES DURCHSICHTIG: 0.78 bedeutet 78% Sichtbarkeit, PDF scheint durch */
+  opacity: 0.78;
   transition: opacity 0.2s ease;
+  pointer-events: all;
+  -webkit-user-drag: none;
+  user-select: none;
 }
-
 .geodreieck-svg:active {
   /* Wird minimal transparenter, wenn man es verschiebt, für noch bessere Sicht */
   opacity: 0.65;
 }
-
 /* Der runde Dreh-Griff an der oberen Spitze */
 .geo-dreh-griff {
   position: absolute;
@@ -590,22 +529,40 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   left: calc(50% - 17px);
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
   z-index: 310;
+  transition: transform 80ms ease;
 }
-
+.geo-dreh-griff:hover  { background: #f0f0f0; }
 .geo-dreh-griff:active {
   cursor: grabbing;
   transform: scale(0.95);
 }
+.geo-dreh-griff svg {
+  width: 16px; height: 16px;
+  fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  pointer-events: none;
+}
 
+/* Aktive Führungslinie beim Lineal-Snap (eigenständiges SVG-Overlay) */
+.geo-fuehrungslinie-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 305;
+}
 .geo-fuehrungslinie {
   stroke: #ff9800;
   stroke-width: 2;
   stroke-dasharray: 6,4;
+  stroke-linecap: round;
 }
+
 
 /* ═══════════════════════════════════════════════════════════════════
    13. FOKUS-TOOLBAR
-   Schwebende Mini-Leiste wenn Spotlight oder Laser aktiv.
 ════════════════════════════════════════════════════════════════════ */
 .fokus-toolbar {
   position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
