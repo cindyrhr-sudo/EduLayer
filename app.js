@@ -352,8 +352,11 @@ function geoKalibrierungLaden() {
     if (gespeichert) prozent = parseFloat(gespeichert);
   } catch(_) {}
   Z.geoKalibrierung = prozent / 100;
-  D.sliderGeoKalibrierung.value = prozent;
-  D.geoKalibrierungAnzeige.textContent = `${prozent} %`;
+  // Defensive Checks: falls das Slider-Element im HTML fehlt (z.B. nach
+  // unvollständigem Update), darf das nicht den kompletten App-Start
+  // zum Absturz bringen.
+  if (D.sliderGeoKalibrierung)  D.sliderGeoKalibrierung.value = prozent;
+  if (D.geoKalibrierungAnzeige) D.geoKalibrierungAnzeige.textContent = `${prozent} %`;
 }
 
 /** Gespeicherte PDF-Transparenz laden (Default 100% = voll deckend). */
@@ -363,9 +366,9 @@ function pdfTransparenzLaden() {
     const gespeichert = localStorage.getItem('edulayer-pdf-transparenz');
     if (gespeichert) prozent = parseFloat(gespeichert);
   } catch(_) {}
-  D.sliderPdfTransparenz.value = prozent;
-  D.pdfTransparenzAnzeige.textContent = `${prozent} %`;
-  D.pdfContainer.style.opacity = prozent / 100;
+  if (D.sliderPdfTransparenz)  D.sliderPdfTransparenz.value = prozent;
+  if (D.pdfTransparenzAnzeige) D.pdfTransparenzAnzeige.textContent = `${prozent} %`;
+  if (D.pdfContainer)          D.pdfContainer.style.opacity = prozent / 100;
 }
 
 
@@ -602,20 +605,24 @@ function einstellungenInit() {
     D.radiererAnzeige.textContent = `${D.sliderRadierer.value} px`;
     if (Z.werkzeug === 'radierer') Z.strichbreite = KONFIGURATION.RADIERER_PX;
   });
-  D.sliderGeoKalibrierung.addEventListener('input', () => {
-    const prozent = +D.sliderGeoKalibrierung.value;
-    Z.geoKalibrierung = prozent / 100;
-    D.geoKalibrierungAnzeige.textContent = `${prozent} %`;
-    try { localStorage.setItem('edulayer-geo-kalibrierung', String(prozent)); } catch(_) {}
-    if (Z.geodreieckAktiv) geodreieckSkalieren();
-    if (Z.linealAktiv) linealSkalieren();
-  });
-  D.sliderPdfTransparenz.addEventListener('input', () => {
-    const prozent = +D.sliderPdfTransparenz.value;
-    D.pdfContainer.style.opacity = prozent / 100;
-    D.pdfTransparenzAnzeige.textContent = `${prozent} %`;
-    try { localStorage.setItem('edulayer-pdf-transparenz', String(prozent)); } catch(_) {}
-  });
+  if (D.sliderGeoKalibrierung) {
+    D.sliderGeoKalibrierung.addEventListener('input', () => {
+      const prozent = +D.sliderGeoKalibrierung.value;
+      Z.geoKalibrierung = prozent / 100;
+      if (D.geoKalibrierungAnzeige) D.geoKalibrierungAnzeige.textContent = `${prozent} %`;
+      try { localStorage.setItem('edulayer-geo-kalibrierung', String(prozent)); } catch(_) {}
+      if (Z.geodreieckAktiv) geodreieckSkalieren();
+      if (Z.linealAktiv) linealSkalieren();
+    });
+  }
+  if (D.sliderPdfTransparenz) {
+    D.sliderPdfTransparenz.addEventListener('input', () => {
+      const prozent = +D.sliderPdfTransparenz.value;
+      D.pdfContainer.style.opacity = prozent / 100;
+      if (D.pdfTransparenzAnzeige) D.pdfTransparenzAnzeige.textContent = `${prozent} %`;
+      try { localStorage.setItem('edulayer-pdf-transparenz', String(prozent)); } catch(_) {}
+    });
+  }
 }
 
 
