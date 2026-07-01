@@ -43,6 +43,7 @@
 const KONFIGURATION = {
   STIFT_DUENN_PX:    2,
   STIFT_DICK_PX:     6,
+  GERADE_LINIE_PX:   2,   // Standardbreite gerade Linie
   TEXTMARKER_PX:     18,
   TEXTMARKER_ALPHA:  0.32,
   RADIERER_PX:       28,
@@ -86,9 +87,11 @@ const Z = {
   werkzeug:        'stift-duenn',
   strichfarbe:     KONFIGURATION.STANDARD_FARBE,
   strichbreite:    KONFIGURATION.STIFT_DUENN_PX,
+  linienstil:      'solid',   // 'solid'|'dashed'|'dotted'|'dash-dot' (für gerade-linie)
   zeichnet:        false,
   letzterPunkt:    null,
   aktuellerStrich: null,
+  geradeLinieStart: null,     // Startpunkt für gerade Linie (Vorschau)
 
   modus:           'zeichnen',
   thema:           'dunkel',
@@ -127,6 +130,7 @@ const Z = {
   linealPos:       { x: 60, y: 180 },
   linealWinkel:    0,
   linealLaengeCm:  20,    // Standardlänge des Lineals in cm
+  linealKalibrierung: 1.0, // eigener Kalibrierungsfaktor (1.0 = 100%)
   linealDrag:      null,
 
   zoom:            1.0,
@@ -227,6 +231,10 @@ const D = {
   radiererAnzeige:       document.getElementById('radierer-anzeige'),
   sliderGeoKalibrierung:  document.getElementById('slider-geo-kalibrierung'),
   geoKalibrierungAnzeige: document.getElementById('geo-kalibrierung-anzeige'),
+  sliderLinealLaenge:     document.getElementById('slider-lineal-laenge'),
+  linealLaengeAnzeige:    document.getElementById('lineal-laenge-anzeige'),
+  sliderLinealKalibrierung:  document.getElementById('slider-lineal-kalibrierung'),
+  linealKalibrierungAnzeige: document.getElementById('lineal-kalibrierung-anzeige'),
   sliderPdfTransparenz:   document.getElementById('slider-pdf-transparenz'),
   pdfTransparenzAnzeige:  document.getElementById('pdf-transparenz-anzeige'),
 
@@ -326,6 +334,34 @@ function ctxReset(ctx) {
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 }
 
+/**
+ * Zeichnet eine einzelne gerade Linie auf einen Canvas-Context.
+ * Übersetzt den linienstil-String in ein Canvas-setLineDash-Muster.
+ * Die Muster-Werte sind relativ zur Strichbreite, damit sie bei
+ * dünneren und dickeren Linien gleich proportioniert aussehen.
+ */
+function geradeLinieZeichnen(ctx, von, bis, farbe, breite, linienstil) {
+  const DASH_MUSTER = {
+    'solid':    [],
+    'dashed':   [breite * 4, breite * 2.5],
+    'dotted':   [breite * 0.5, breite * 2.5],
+    'dash-dot': [breite * 5, breite * 2, breite * 0.5, breite * 2],
+  };
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = farbe;
+  ctx.lineWidth   = breite;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+  ctx.setLineDash(DASH_MUSTER[linienstil] ?? []);
+  ctx.beginPath();
+  ctx.moveTo(von.x, von.y);
+  ctx.lineTo(bis.x, bis.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctxReset(ctx);
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════
    5. THEMA
@@ -369,6 +405,23 @@ function pdfTransparenzLaden() {
   if (D.sliderPdfTransparenz)  D.sliderPdfTransparenz.value = prozent;
   if (D.pdfTransparenzAnzeige) D.pdfTransparenzAnzeige.textContent = `${prozent} %`;
   if (D.pdfContainer)          D.pdfContainer.style.opacity = prozent / 100;
+}
+
+/** Gespeicherte Lineal-Länge und Kalibrierung laden. */
+function linealEinstellungenLaden() {
+  let laenge = 20, kalibrProzent = 100;
+  try {
+    const l = localStorage.getItem('edulayer-lineal-laenge');
+    if (l) laenge = parseFloat(l);
+    const k = localStorage.getItem('edulayer-lineal-kalibrierung');
+    if (k) kalibrProzent = parseFloat(k);
+  } catch(_) {}
+  Z.linealLaengeCm = laenge;
+  Z.linealKalibrierung = kalibrProzent / 100;
+  if (D.sliderLinealLaenge)       D.sliderLinealLaenge.value = laenge;
+  if (D.linealLaengeAnzeige)      D.linealLaengeAnzeige.textContent = `${laenge} cm`;
+  if (D.sliderLinealKalibrierung)  D.sliderLinealKalibrierung.value = kalibrProzent;
+  if (D.linealKalibrierungAnzeige) D.linealKalibrierungAnzeige.textContent = `${kalibrProzent} %`;
 }
 
 
@@ -475,6 +528,30 @@ const WERKZEUG_ICONS = {
               fill="currentColor" opacity="0.45" stroke="none"/>`,
     label: 'Marker',
   },
+  // Gerade Linie – Icon zeigt je nach aktuellem Linienstil das passende Dash-Muster
+  'gerade-linie-solid': {
+    svg: `<line x1="3" y1="12" x2="21" y2="12" stroke-width="2" stroke-linecap="round"/>
+          <line x1="3" y1="6" x2="21" y2="6" stroke-width="0.8" opacity="0.4"/>`,
+    label: 'Gerade',
+  },
+  'gerade-linie-dashed': {
+    svg: `<line x1="3" y1="12" x2="21" y2="12" stroke-width="2"
+              stroke-dasharray="4,3" stroke-linecap="round"/>
+          <line x1="3" y1="6" x2="21" y2="6" stroke-width="0.8" opacity="0.4"/>`,
+    label: 'Gestrich.',
+  },
+  'gerade-linie-dotted': {
+    svg: `<line x1="3" y1="12" x2="21" y2="12" stroke-width="2.5"
+              stroke-dasharray="0.5,3" stroke-linecap="round"/>
+          <line x1="3" y1="6" x2="21" y2="6" stroke-width="0.8" opacity="0.4"/>`,
+    label: 'Gepunkt.',
+  },
+  'gerade-linie-dash-dot': {
+    svg: `<line x1="3" y1="12" x2="21" y2="12" stroke-width="2"
+              stroke-dasharray="6,2,1,2" stroke-linecap="round"/>
+          <line x1="3" y1="6" x2="21" y2="6" stroke-width="0.8" opacity="0.4"/>`,
+    label: 'Str-Pkt',
+  },
 };
 
 const FOKUS_ICONS = {
@@ -499,12 +576,18 @@ const FOKUS_ICONS = {
 };
 
 function stiftButtonAktualisieren(werkzeug) {
-  const info = WERKZEUG_ICONS[werkzeug];
+  // Für gerade-linie: Icon zeigt den aktuell gewählten Linienstil
+  const iconKey = werkzeug === 'gerade-linie'
+    ? `gerade-linie-${Z.linienstil}`
+    : werkzeug;
+  const info = WERKZEUG_ICONS[iconKey];
   if (!info) return;
   D.iconStiftAktiv.innerHTML = info.svg;
   D.labelStiftAktiv.textContent = info.label;
   D.flyoutStiftBtns.forEach(b => {
-    const a = b.dataset.werkzeug === werkzeug;
+    // Button ist aktiv wenn Werkzeug übereinstimmt UND (bei gerade-linie) Stil übereinstimmt
+    const a = b.dataset.werkzeug === werkzeug &&
+      (werkzeug !== 'gerade-linie' || b.dataset.linienstil === Z.linienstil);
     b.classList.toggle('aktiv', a);
     b.setAttribute('aria-pressed', a ? 'true' : 'false');
   });
@@ -615,6 +698,23 @@ function einstellungenInit() {
       if (Z.linealAktiv) linealSkalieren();
     });
   }
+  if (D.sliderLinealLaenge) {
+    D.sliderLinealLaenge.addEventListener('input', () => {
+      Z.linealLaengeCm = +D.sliderLinealLaenge.value;
+      if (D.linealLaengeAnzeige) D.linealLaengeAnzeige.textContent = `${Z.linealLaengeCm} cm`;
+      try { localStorage.setItem('edulayer-lineal-laenge', String(Z.linealLaengeCm)); } catch(_) {}
+      if (Z.linealAktiv) linealSkalieren();
+    });
+  }
+  if (D.sliderLinealKalibrierung) {
+    D.sliderLinealKalibrierung.addEventListener('input', () => {
+      const prozent = +D.sliderLinealKalibrierung.value;
+      Z.linealKalibrierung = prozent / 100;
+      if (D.linealKalibrierungAnzeige) D.linealKalibrierungAnzeige.textContent = `${prozent} %`;
+      try { localStorage.setItem('edulayer-lineal-kalibrierung', String(prozent)); } catch(_) {}
+      if (Z.linealAktiv) linealSkalieren();
+    });
+  }
   if (D.sliderPdfTransparenz) {
     D.sliderPdfTransparenz.addEventListener('input', () => {
       const prozent = +D.sliderPdfTransparenz.value;
@@ -722,17 +822,18 @@ function werkzeugWaehlen(name) {
 
   Z.werkzeug = name;
   Z.strichbreite = ({
-    'stift-duenn': KONFIGURATION.STIFT_DUENN_PX,
-    'stift-dick':  KONFIGURATION.STIFT_DICK_PX,
-    'textmarker':  KONFIGURATION.TEXTMARKER_PX,
-    'radierer':    KONFIGURATION.RADIERER_PX,
-    'laser':       KONFIGURATION.LASER_PX,
+    'stift-duenn':  KONFIGURATION.STIFT_DUENN_PX,
+    'stift-dick':   KONFIGURATION.STIFT_DICK_PX,
+    'textmarker':   KONFIGURATION.TEXTMARKER_PX,
+    'gerade-linie': KONFIGURATION.GERADE_LINIE_PX,
+    'radierer':     KONFIGURATION.RADIERER_PX,
+    'laser':        KONFIGURATION.LASER_PX,
   })[name] ?? KONFIGURATION.STIFT_DUENN_PX;
 
   D.btnRadierer.classList.toggle('aktiv', name === 'radierer');
   D.btnRadierer.setAttribute('aria-pressed', name === 'radierer' ? 'true' : 'false');
 
-  if (['stift-duenn','stift-dick','textmarker'].includes(name)) {
+  if (['stift-duenn','stift-dick','textmarker','gerade-linie'].includes(name)) {
     D.btnStiftAktiv.classList.add('aktiv');
     D.btnStiftAktiv.setAttribute('aria-pressed', 'true');
     stiftButtonAktualisieren(name);
@@ -766,6 +867,7 @@ function sidebarInit() {
 
   D.flyoutStiftBtns.forEach(btn => {
     btn.addEventListener('click', () => {
+      if (btn.dataset.linienstil) Z.linienstil = btn.dataset.linienstil;
       werkzeugWaehlen(btn.dataset.werkzeug);
       flyoutsSchliessen();
     });
@@ -893,6 +995,13 @@ function strichStarten(e, canvas) {
   const seite = +canvas.closest('.seite-container').dataset.seite;
   undoSnapshot(seite);
 
+  if (Z.werkzeug === 'gerade-linie') {
+    Z.geradeLinieStart = { ...p };
+    Z.aktuellerStrich = null;
+    return;
+  }
+  undoSnapshot(seite);
+
   if (Z.werkzeug === 'textmarker') {
     const off = document.createElement('canvas');
     off.width = canvas.width; off.height = canvas.height;
@@ -936,6 +1045,27 @@ function strichBewegen(e, canvas) {
 
   let p = koordinaten(e, canvas);
   p = linealUndGeoSnap(e, canvas, p);
+
+  // Gerade Linie: Vorschau während des Ziehens
+  if (Z.werkzeug === 'gerade-linie' && Z.geradeLinieStart) {
+    const seite = +canvas.closest('.seite-container').dataset.seite;
+    const snap = Z.undoVerlauf[seite];
+    const ctx = canvas.getContext('2d');
+    if (snap?.length) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        geradeLinieZeichnen(ctx, Z.geradeLinieStart, p, Z.strichfarbe, Z.strichbreite, Z.linienstil);
+      };
+      img.src = snap[snap.length - 1];
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      geradeLinieZeichnen(ctx, Z.geradeLinieStart, p, Z.strichfarbe, Z.strichbreite, Z.linienstil);
+    }
+    Z.letzterPunkt = p;
+    return;
+  }
 
   if (Z.werkzeug === 'textmarker' && Z.aktuellerStrich?.offCtx) {
     const offCtx = Z.aktuellerStrich.offCtx;
@@ -982,6 +1112,26 @@ function strichBeenden(e, canvas) {
   if (!Z.zeichnet) return;
   e.preventDefault();
   Z.zeichnet = false;
+
+  // Gerade Linie: Endpunkt ermitteln und final zeichnen
+  if (Z.werkzeug === 'gerade-linie' && Z.geradeLinieStart) {
+    let pEnd = koordinaten(e, canvas);
+    pEnd = linealUndGeoSnap(e, canvas, pEnd);
+    const ctx = canvas.getContext('2d');
+    const seite = +canvas.closest('.seite-container').dataset.seite;
+    geradeLinieZeichnen(ctx, Z.geradeLinieStart, pEnd, Z.strichfarbe, Z.strichbreite, Z.linienstil);
+    if (!Z.annotationen[seite]) Z.annotationen[seite] = [];
+    Z.annotationen[seite].push({
+      werkzeug: 'gerade-linie',
+      punkte: [Z.geradeLinieStart, pEnd],
+      farbe: Z.strichfarbe,
+      breite: Z.strichbreite,
+      linienstil: Z.linienstil,
+    });
+    Z.geradeLinieStart = null;
+    Z.letzterPunkt = null;
+    return;
+  }
 
   if (Z.werkzeug === 'textmarker' && Z.aktuellerStrich?.offCanvas) {
     const ctx = canvas.getContext('2d');
@@ -1030,7 +1180,9 @@ function stricheZeichnen(ctx, striche) {
   striche.forEach(s => {
     if (!s.punkte?.length) return;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = s.breite;
-    if (s.werkzeug === 'textmarker') {
+    if (s.werkzeug === 'gerade-linie') {
+      geradeLinieZeichnen(ctx, s.punkte[0], s.punkte[1], s.farbe, s.breite, s.linienstil ?? 'solid');
+    } else if (s.werkzeug === 'textmarker') {
       const off = document.createElement('canvas');
       off.width = ctx.canvas.width; off.height = ctx.canvas.height;
       const offCtx = off.getContext('2d');
@@ -1445,7 +1597,7 @@ function linealUmschalten() { Z.linealAktiv ? linealAus() : linealAn(); }
 /** Skalierung analog zum Geodreieck: linealLaengeCm × pxProCm × zoom. */
 function linealSkalieren() {
   const pxProCm = Z.pxProCm[Z.aktiveSeite] || (KONFIGURATION.PDF_SCALE * 72 / 2.54);
-  const breite  = Z.linealLaengeCm * pxProCm * Z.zoom * Z.geoKalibrierung;
+  const breite  = Z.linealLaengeCm * pxProCm * Z.zoom * Z.linealKalibrierung;
   D.linealBalken.style.width = `${breite}px`;
   linealZeichnenSkala();
 }
@@ -1930,6 +2082,7 @@ function appStart() {
   themaLaden();
   geoKalibrierungLaden();
   pdfTransparenzLaden();
+  linealEinstellungenLaden();
 
   sidebarInit();
   einstellungenInit();
