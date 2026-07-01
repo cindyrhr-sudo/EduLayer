@@ -217,6 +217,53 @@
             <span>Marker</span>
           </button>
 
+          <!-- Trennlinie -->
+          <div style="width:100%;height:1px;background:var(--flyout-rand);margin:2px 0;flex-shrink:0"></div>
+
+          <!-- Gerade Linie – durchgehend -->
+          <button class="flyout-btn" data-werkzeug="gerade-linie" data-linienstil="solid"
+                  role="menuitem" title="Gerade Linie – durchgehend" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <line x1="3" y1="12" x2="21" y2="12" stroke-width="2" stroke-linecap="round"/>
+              <!-- Lineal-Symbol oben -->
+              <line x1="3" y1="6" x2="21" y2="6" stroke-width="0.8" opacity="0.4"/>
+            </svg>
+            <span>Gerade</span>
+          </button>
+
+          <!-- Gerade Linie – gestrichelt -->
+          <button class="flyout-btn" data-werkzeug="gerade-linie" data-linienstil="dashed"
+                  role="menuitem" title="Gerade Linie – gestrichelt" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <line x1="3" y1="12" x2="21" y2="12" stroke-width="2"
+                    stroke-dasharray="4,3" stroke-linecap="round"/>
+              <line x1="3" y1="6" x2="21" y2="6" stroke-width="0.8" opacity="0.4"/>
+            </svg>
+            <span>Gestrich.</span>
+          </button>
+
+          <!-- Gerade Linie – gepunktet -->
+          <button class="flyout-btn" data-werkzeug="gerade-linie" data-linienstil="dotted"
+                  role="menuitem" title="Gerade Linie – gepunktet" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <line x1="3" y1="12" x2="21" y2="12" stroke-width="2.5"
+                    stroke-dasharray="0.5,3" stroke-linecap="round"/>
+              <line x1="3" y1="6" x2="21" y2="6" stroke-width="0.8" opacity="0.4"/>
+            </svg>
+            <span>Gepunkt.</span>
+          </button>
+
+          <!-- Gerade Linie – Strich-Punkt -->
+          <button class="flyout-btn" data-werkzeug="gerade-linie" data-linienstil="dash-dot"
+                  role="menuitem" title="Gerade Linie – Strich-Punkt" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <line x1="3" y1="12" x2="21" y2="12" stroke-width="2"
+                    stroke-dasharray="6,2,1,2" stroke-linecap="round"/>
+              <line x1="3" y1="6" x2="21" y2="6" stroke-width="0.8" opacity="0.4"/>
+            </svg>
+            <span>Str-Pkt</span>
+          </button>
+
         </div>
       </div>
     </div>
@@ -552,6 +599,26 @@
             Geodreieck auf eine bekannte 1cm-Markierung im PDF legen
             und mit einem echten Lineal vergleichen. Stimmt es nicht,
             hier feinjustieren.
+          </p>
+        </div>
+        <div class="einstellungen-zeile einstellungen-zeile--spalte">
+          <span class="einstellungen-label">Lineal-Länge</span>
+          <div class="slider-zeile">
+            <input type="range" id="slider-lineal-laenge" class="einstellungen-slider"
+                   min="5" max="30" step="1" value="20"/>
+            <span id="lineal-laenge-anzeige" class="slider-wert">20 cm</span>
+          </div>
+        </div>
+        <div class="einstellungen-zeile einstellungen-zeile--spalte">
+          <span class="einstellungen-label">Lineal-Kalibrierung</span>
+          <div class="slider-zeile">
+            <input type="range" id="slider-lineal-kalibrierung" class="einstellungen-slider"
+                   min="85" max="115" step="0.5" value="100"/>
+            <span id="lineal-kalibrierung-anzeige" class="slider-wert">100 %</span>
+          </div>
+          <p class="einstellungen-hinweis">
+            Lineal auf eine bekannte 1cm-Markierung im PDF legen
+            und vergleichen. Stimmt es nicht, hier feinjustieren.
           </p>
         </div>
       </div>
