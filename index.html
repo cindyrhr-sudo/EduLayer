@@ -1,4 +1,1025 @@
 <!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1f2124">
+    <title>Lern-Deal - Kooperative iPad App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg: #1f2124;
+            --panel: #2a2c30;
+            --panel-soft: #26282b;
+            --border: #3a3d41;
+            --border-soft: #313336;
+            --ink: #e6e4df;
+            --ink-dim: #9a9c9f;
+            --ink-faint: #6d6f72;
+
+            --teacher: #93b6bd;
+            --teacher-strong: #b3d0d5;
+            --teacher-fill: #35494e;
+            --teacher-border: #547077;
+            --teacher-soft-bg: rgba(147, 182, 189, 0.07);
+            --teacher-soft-border: rgba(147, 182, 189, 0.20);
+
+            --student: #a4c199;
+            --student-strong: #c0d8b7;
+            --student-fill: #3c4c36;
+            --student-border: #61805a;
+            --student-soft-bg: rgba(164, 193, 153, 0.07);
+            --student-soft-border: rgba(164, 193, 153, 0.20);
+
+            --warn: #c7a273;
+            --warn-fill: #4a3d2b;
+            --warn-border: #6b5a3d;
+
+            --danger: #bd8377;
+            --danger-fill: #493430;
+            --danger-border: #6b4c44;
+
+            --gold: #ccb37c;
+        }
+
+        html, body { height: 100%; width: 100%; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+                         "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            background-color: var(--bg);
+            color: var(--ink);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .upside-down { transform: rotate(180deg); }
+
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.015); }
+        }
+        .breathing { animation: breathe 3.6s ease-in-out infinite; }
+
+        @keyframes soft-in {
+            from { opacity: 0; transform: translateY(6px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .soft-in { animation: soft-in 0.4s ease-out; }
+
+        @keyframes soft-in-flip {
+            from { opacity: 0; transform: rotate(180deg) translateY(6px) scale(0.98); }
+            to { opacity: 1; transform: rotate(180deg) translateY(0) scale(1); }
+        }
+        .soft-in-flip { animation: soft-in-flip 0.4s ease-out; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .breathing, .soft-in, .soft-in-flip { animation: none !important; }
+        }
+
+        .spark {
+            position: absolute;
+            pointer-events: none;
+            animation: drift 2.4s ease-out forwards;
+        }
+        @keyframes drift {
+            0% { transform: translateY(0) scale(1); opacity: 0.85; }
+            100% { transform: translateY(220px) scale(0.6); opacity: 0; }
+        }
+
+        .zone-student { background: var(--student-soft-bg); border: 2px solid var(--student-soft-border); }
+        .zone-teacher { background: var(--teacher-soft-bg); border: 2px solid var(--teacher-soft-border); }
+        .zone-middle {
+            background: var(--panel-soft);
+            border-top: 2px solid var(--border-soft);
+            border-bottom: 2px solid var(--border-soft);
+        }
+
+        .bar-student { background: var(--student-fill); border: 1px solid var(--student-soft-border); color: var(--student-strong); }
+        .bar-teacher { background: var(--teacher-fill); border: 1px solid var(--teacher-soft-border); color: var(--teacher-strong); }
+
+        .card-student { background: var(--panel); border: 1px solid var(--student-soft-border); }
+        .card-teacher { background: var(--panel); border: 1px solid var(--teacher-soft-border); }
+
+        .draft-student { background: var(--panel); border: 2px solid var(--student-border); color: var(--student-strong); }
+        .draft-teacher { background: var(--panel); border: 2px solid var(--teacher-border); color: var(--teacher-strong); }
+
+        .btn-submit-student { background: var(--student); color: #16201a; }
+        .btn-submit-student:active { background: var(--student-strong); }
+        .btn-submit-teacher { background: var(--teacher); color: #16201a; }
+        .btn-submit-teacher:active { background: var(--teacher-strong); }
+
+        .key-btn { background: var(--panel); border: 1px solid var(--border); color: var(--ink); }
+        .key-btn:active { background: var(--panel-soft); }
+        .key-warn { background: var(--warn-fill); border: 1px solid var(--warn-border); color: var(--warn); }
+        .key-danger { background: var(--danger-fill); border: 1px solid var(--danger-border); color: var(--danger); }
+
+        .task-btn { background: var(--panel); border: 1px solid var(--border); color: var(--ink-dim); }
+        .task-btn.is-active { background: var(--teacher-fill); border-color: var(--teacher-border); color: var(--teacher-strong); }
+
+        .allow-btn { background: var(--panel); border: 1px solid var(--border); color: var(--ink-dim); }
+        .allow-btn.is-active { background: var(--teacher-fill); border-color: var(--teacher-border); color: var(--teacher-strong); }
+
+        .reward-btn { background: var(--panel); border: 2px solid var(--border-soft); opacity: 0.35; }
+        .reward-btn.is-selected { border-color: var(--student-border); opacity: 1; background: var(--student-fill); }
+
+        .thumb-btn { background: var(--panel); border: 1px solid var(--border); color: var(--ink-dim); }
+        .thumb-btn.is-accepted-teacher { background: var(--teacher-fill); border-color: var(--teacher-border); color: var(--teacher-strong); }
+        .thumb-btn.is-accepted-student { background: var(--student-fill); border-color: var(--student-border); color: var(--student-strong); }
+
+        .match-idle { background: var(--panel); border: 1px solid var(--border); color: var(--ink-faint); }
+        .match-ready { background: var(--panel); border: 2px solid var(--gold); color: var(--gold); }
+
+        .count-ok { background: var(--teacher-fill); color: var(--teacher-strong); border: 1px solid var(--teacher-soft-border); }
+        .count-pending { background: var(--panel); color: var(--ink-dim); border: 1px solid var(--border); }
+
+        .reset-btn { background: var(--panel); border: 2px solid var(--border); color: var(--ink-dim); }
+        .reset-btn:active { border-color: var(--danger-border); color: var(--danger); }
+
+        .gear-btn {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            color: var(--ink-dim);
+        }
+        .gear-btn:active { color: var(--ink); }
+
+        .manage-input {
+            background: var(--panel-soft);
+            border: 1px solid var(--border);
+            color: var(--ink);
+        }
+        .manage-input::placeholder { color: var(--ink-faint); }
+
+        .manage-row { background: var(--panel-soft); border: 1px solid var(--border-soft); }
+
+        #orientationNotice { display: none; }
+        @media (orientation: portrait) and (max-width: 1366px) {
+            #orientationNotice { display: flex; }
+            #appRoot { display: none; }
+        }
+    </style>
+</head>
+<body class="relative flex flex-col justify-between items-stretch p-2 h-screen w-screen overflow-hidden">
+
+    <div id="orientationNotice" class="hidden absolute inset-0 z-[999] flex-col items-center justify-center gap-4 text-center px-8" style="background: var(--bg);">
+        <i class="fa-solid fa-tablet-screen-button text-5xl" style="color: var(--ink-dim);"></i>
+        <p class="text-xl font-bold" style="color: var(--ink);">Bitte das iPad ins Querformat drehen</p>
+        <p class="text-sm" style="color: var(--ink-dim);">Lern-Deal ist für die Nutzung quer auf dem Tisch gestaltet.</p>
+    </div>
+
+    <div id="appRoot" class="h-full w-full flex flex-col justify-between items-stretch relative">
+
+    <!-- Verwaltungs-Button (nur für Lehrkraft, unten rechts fest positioniert) -->
+    <button onclick="openManageModal()" class="gear-btn fixed bottom-3 right-3 z-40 w-11 h-11 rounded-full flex items-center justify-center text-lg">
+        <i class="fa-solid fa-gear"></i>
+    </button>
+
+    <div id="negotiationScreen" class="h-full w-full flex flex-col justify-between items-stretch transition-all duration-500">
+
+        <!-- ==================== SCHÜLER-BEREICH (OBEN - 180° gedreht) ==================== -->
+        <div class="zone-student h-[37.5%] w-full rounded-3xl p-4 flex flex-col justify-between upside-down relative overflow-hidden">
+
+            <div class="bar-student w-full py-1.5 px-3 rounded-xl flex items-center justify-center text-center">
+                <span id="studentLiveFormula" class="text-sm font-bold tracking-wide flex items-center gap-1.5 justify-center">
+                    Warte auf Aufgabe der Lehrkraft...
+                </span>
+            </div>
+
+            <div class="flex gap-4 items-center justify-between my-auto h-[55%] z-10">
+
+                <div class="w-1/2 h-full flex flex-col justify-center">
+                    <div id="studentRewardPlaceholder" class="text-sm font-bold text-center py-4 rounded-2xl" style="color: var(--ink-faint); background: var(--panel-soft); border: 1px solid var(--border-soft);">
+                        Warte auf Lehrer-Freigabe...
+                    </div>
+                    <div id="studentRewardGrid" class="hidden grid grid-cols-2 gap-3"></div>
+                </div>
+
+                <div class="w-1/2 h-full flex gap-4 items-center justify-end">
+                    <div class="flex flex-col items-center justify-center">
+                        <div class="draft-student rounded-2xl px-5 py-3 text-5xl font-black min-w-[100px] text-center">
+                            <span id="studentDraft">0</span>
+                        </div>
+                        <span id="studentUnitIndicator" class="text-xs font-bold mt-1.5 uppercase" style="color: var(--student);">--</span>
+                    </div>
+
+                    <button onclick="commitStudent()" class="btn-submit-student w-16 h-16 rounded-2xl flex items-center justify-center font-black text-3xl active:scale-95 transition-all">
+                        <i class="fa-solid fa-arrow-down rotate-180"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center gap-4 h-[25%] z-10 border-t pt-2" style="border-color: var(--student-soft-border);">
+                <div id="studentThumbsUpContainer" class="invisible w-1/4 flex justify-start">
+                    <button onclick="toggleStudentAccept()" id="studentThumbsUpBtn" class="thumb-btn px-6 py-2.5 rounded-2xl flex items-center gap-3 font-bold text-lg active:scale-95 transition-all">
+                        <i class="fa-solid fa-thumbs-up text-xl"></i>
+                        <span>OK!</span>
+                    </button>
+                </div>
+
+                <div class="flex-1 flex gap-2 justify-end">
+                    <button onclick="pressStudentKey('1')" class="key-btn w-14 h-12 rounded-xl font-bold text-xl transition-colors">1</button>
+                    <button onclick="pressStudentKey('2')" class="key-btn w-14 h-12 rounded-xl font-bold text-xl transition-colors">2</button>
+                    <button onclick="pressStudentKey('3')" class="key-btn w-14 h-12 rounded-xl font-bold text-xl transition-colors">3</button>
+                    <button onclick="pressStudentKey('4')" class="key-btn w-14 h-12 rounded-xl font-bold text-xl transition-colors">4</button>
+                    <button onclick="pressStudentKey('5')" class="key-btn w-14 h-12 rounded-xl font-bold text-xl transition-colors">5</button>
+                    <button onclick="pressStudentKey('6')" class="key-btn w-14 h-12 rounded-xl font-bold text-xl transition-colors">6</button>
+                    <button onclick="pressStudentKey('7')" class="key-btn w-14 h-12 rounded-xl font-bold text-xl transition-colors">7</button>
+                    <button onclick="pressStudentKey('8')" class="key-btn w-14 h-12 rounded-xl font-bold text-xl transition-colors">8</button>
+                    <button onclick="pressStudentKey('9')" class="key-btn w-14 h-12 rounded-xl font-bold text-xl transition-colors">9</button>
+                    <button onclick="pressStudentKey('0')" class="key-btn w-14 h-12 rounded-xl font-bold text-xl transition-colors">0</button>
+                    <button onclick="pressStudentKey('back')" class="key-warn w-14 h-12 rounded-xl font-bold text-lg transition-all"><i class="fa-solid fa-delete-left"></i></button>
+                    <button onclick="clearStudentDraft()" class="key-danger w-14 h-12 rounded-xl font-bold text-lg transition-all">C</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== MITTLERES VERHANDLUNGSFELD ==================== -->
+        <div class="zone-middle h-[25%] w-full flex flex-col justify-center items-center p-3 relative z-20 upside-down">
+
+            <div class="z-10 flex w-full justify-around items-center my-auto">
+                <div class="card-teacher flex flex-col items-center p-4 rounded-2xl w-5/12">
+                    <span class="text-xs font-bold uppercase tracking-wider" style="color: var(--teacher);">Lehrkraft fordert:</span>
+                    <span id="activeLehrerSoll" class="text-2xl font-extrabold mt-1.5 flex items-center gap-2" style="color: var(--teacher-strong);">--</span>
+                </div>
+
+                <div id="matchIndicatorBadge" class="match-idle w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300">
+                    <i id="matchIcon" class="fa-solid fa-thumbs-up text-2xl opacity-40"></i>
+                </div>
+
+                <div class="card-student flex flex-col items-center p-4 rounded-2xl w-5/12">
+                    <span class="text-xs font-bold uppercase tracking-wider" style="color: var(--student);">Schüler bietet an:</span>
+                    <span id="activeSchuelerHaben" class="text-2xl font-extrabold mt-1.5 flex items-center gap-2" style="color: var(--student-strong);">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== LEHRER-BEREICH (UNTEN) ==================== -->
+        <div class="zone-teacher h-[37.5%] w-full rounded-3xl p-4 flex flex-col justify-between relative overflow-hidden">
+
+            <div class="bar-teacher w-full py-1.5 px-3 rounded-xl flex items-center justify-center text-center">
+                <span id="teacherLiveFormula" class="text-sm font-bold tracking-wide flex items-center gap-1.5 justify-center">
+                    Erst Aufgabe wählen ➔ Dann Belohnungen freigeben
+                </span>
+            </div>
+
+            <div class="flex gap-4 items-center justify-between my-auto h-[55%] z-10">
+                <div class="w-1/2 h-full flex flex-col justify-center gap-1 overflow-y-auto">
+                    <div id="taskGrid" class="grid grid-cols-4 gap-2 mb-2"></div>
+
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-bold uppercase tracking-wider" style="color: var(--teacher);">Genau zwei Optionen freigeben:</span>
+                        <span id="allowedCountLabel" class="count-pending text-xs px-2 py-0.5 rounded-md font-black">0/2</span>
+                    </div>
+                    <div id="allowGrid" class="grid grid-cols-4 gap-2"></div>
+                </div>
+
+                <div class="w-1/2 h-full flex gap-4 items-center justify-end">
+                    <div class="flex flex-col gap-1.5">
+                        <button onclick="toggleTeacherUnit('Aufg')" id="teacherUnitAufgBtn" class="w-14 py-2 text-xs font-bold rounded-xl transition-all">Aufg</button>
+                        <button onclick="toggleTeacherUnit('Min')" id="teacherUnitMinBtn" class="w-14 py-2 text-xs font-bold rounded-xl transition-all">Min</button>
+                    </div>
+
+                    <div class="card-teacher flex flex-col items-center justify-center p-2 rounded-2xl w-28 h-full">
+                        <span id="teacherSelectedText" class="text-sm font-black text-center uppercase tracking-wider break-words w-full px-1" style="color: var(--teacher-strong);">Aufgabe</span>
+                    </div>
+
+                    <div class="flex flex-col items-center">
+                        <div class="draft-teacher rounded-2xl px-5 py-3 text-5xl font-black min-w-[100px] text-center">
+                            <span id="teacherDraft">0</span>
+                        </div>
+                    </div>
+
+                    <button onclick="commitTeacher()" class="btn-submit-teacher w-16 h-16 rounded-2xl flex items-center justify-center font-black text-3xl active:scale-95 transition-all">
+                        <i class="fa-solid fa-arrow-up"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center gap-4 h-[25%] z-10 border-t pt-2" style="border-color: var(--teacher-soft-border);">
+                <div id="teacherThumbsUpContainer" class="invisible w-1/4 flex justify-start">
+                    <button onclick="toggleTeacherAccept()" id="teacherThumbsUpBtn" class="thumb-btn px-6 py-2.5 rounded-2xl flex items-center gap-3 font-bold text-lg active:scale-95 transition-all">
+                        <i class="fa-solid fa-thumbs-up text-xl"></i>
+                        <span>OK!</span>
+                    </button>
+                </div>
+
+                <div class="flex-1 flex gap-2 justify-end">
+                    <button onclick="pressTeacherKey('1')" class="key-btn w-14 h-12 rounded-xl font-bold text-lg transition-colors">1</button>
+                    <button onclick="pressTeacherKey('2')" class="key-btn w-14 h-12 rounded-xl font-bold text-lg transition-colors">2</button>
+                    <button onclick="pressTeacherKey('3')" class="key-btn w-14 h-12 rounded-xl font-bold text-lg transition-colors">3</button>
+                    <button onclick="pressTeacherKey('4')" class="key-btn w-14 h-12 rounded-xl font-bold text-lg transition-colors">4</button>
+                    <button onclick="pressTeacherKey('5')" class="key-btn w-14 h-12 rounded-xl font-bold text-lg transition-colors">5</button>
+                    <button onclick="pressTeacherKey('6')" class="key-btn w-14 h-12 rounded-xl font-bold text-lg transition-colors">6</button>
+                    <button onclick="pressTeacherKey('7')" class="key-btn w-14 h-12 rounded-xl font-bold text-lg transition-colors">7</button>
+                    <button onclick="pressTeacherKey('8')" class="key-btn w-14 h-12 rounded-xl font-bold text-lg transition-colors">8</button>
+                    <button onclick="pressTeacherKey('9')" class="key-btn w-14 h-12 rounded-xl font-bold text-lg transition-colors">9</button>
+                    <button onclick="pressTeacherKey('0')" class="key-btn w-14 h-12 rounded-xl font-bold text-lg transition-colors">0</button>
+                    <button onclick="pressTeacherKey('back')" class="key-warn w-14 h-12 rounded-xl font-bold text-base transition-all"><i class="fa-solid fa-delete-left"></i></button>
+                    <button onclick="clearTeacherDraft()" class="key-danger w-14 h-12 rounded-xl font-bold text-base transition-all">C</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ==================== DEAL SCREEN ==================== -->
+    <div id="dealScreen" class="hidden absolute inset-0 flex flex-col justify-between items-center p-8 z-50 overflow-hidden select-none" style="background: linear-gradient(to bottom, var(--bg), var(--student-fill) 140%);">
+
+        <div class="w-full flex flex-col items-center justify-center upside-down py-6 relative">
+            <span class="absolute top-2 right-2 font-bold text-xs uppercase tracking-widest" style="color: var(--ink-faint);"><i class="fa-solid fa-lock"></i> Vertrag Aktiv</span>
+            <div class="text-center">
+                <p class="text-base uppercase tracking-widest font-black" style="color: var(--student);">Deine Belohnung:</p>
+                <div class="flex items-center justify-center gap-4 mt-3">
+                    <span id="finalRewardEmoji" class="text-7xl">🧱</span>
+                    <span id="finalRewardTitle" class="text-5xl font-extrabold" style="color: var(--ink);">Lego</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Das Deal-Feld steht für den Schüler auf dem Kopf -->
+        <div class="soft-in-flip upside-down w-full max-w-md rounded-3xl p-6 relative" style="background: var(--panel); border: 3px solid var(--student-border);">
+            <div class="absolute -top-5 left-1/2 transform -translate-x-1/2 font-black px-8 py-1.5 rounded-full text-sm tracking-widest uppercase" style="background: var(--student); color: #16201a;">
+                ABGEMACHT! 👍
+            </div>
+
+            <div class="flex flex-col gap-3 text-center my-2">
+                <div class="text-4xl font-black flex items-center justify-center gap-3" style="color: var(--ink);">
+                    <span>DEAL!</span>
+                    <i class="fa-solid fa-circle-check" style="color: var(--student);"></i>
+                </div>
+
+                <div class="border-t pt-4 flex flex-col gap-1 text-base" style="border-color: var(--border-soft);">
+                    <p class="font-bold uppercase tracking-wider" style="color: var(--ink-dim);">Abgemachte Pflicht:</p>
+                    <p id="summaryTaskText" class="font-extrabold text-2xl" style="color: var(--teacher-strong);">--</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full flex flex-col items-center justify-center py-6 relative">
+            <div class="text-center">
+                <p class="text-sm uppercase tracking-widest font-bold" style="color: var(--teacher);">Erledige zuerst:</p>
+                <div class="flex items-center justify-center gap-4 mt-2">
+                    <span id="finalTaskValue" class="text-6xl font-extrabold" style="color: var(--ink);">--</span>
+                </div>
+                <p id="finalTaskTitle" class="font-bold text-2xl mt-1" style="color: var(--teacher-strong);">Schreiben</p>
+            </div>
+
+            <div class="mt-8 flex flex-col items-center">
+                <button id="resetLockBtn"
+                        class="reset-btn px-6 py-3 rounded-2xl text-xs font-bold tracking-widest transition-all select-none active:scale-95 duration-100">
+                    RESET (2s halten)
+                </button>
+                <div class="w-40 h-2 rounded-full mt-3 overflow-hidden" style="background: var(--panel-soft); border: 1px solid var(--border-soft);">
+                    <div id="resetProgressBar" class="h-full w-0 transition-all duration-75" style="background: var(--danger);"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ==================== VERWALTUNGS-MODAL (Aufgaben & Belohnungen) ==================== -->
+    <div id="manageModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4" style="background: rgba(15,16,18,0.75);">
+        <div class="w-full max-w-2xl max-h-[92%] rounded-3xl p-5 overflow-y-auto" style="background: var(--panel); border: 1px solid var(--border);">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-black" style="color: var(--ink);">Aufgaben &amp; Belohnungen verwalten</h2>
+                <button onclick="closeManageModal()" class="w-9 h-9 rounded-full key-btn flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <p class="text-xs mb-5" style="color: var(--ink-faint);">
+                Emoji-Code eingeben, z.&nbsp;B. <code>1F4DD</code>, <code>U+1F4DD</code> oder <code>&amp;#128221;</code>. Codes findest du z.&nbsp;B. auf unicode.org oder emojipedia.org. Alternativ kann auch ein Emoji direkt eingefügt werden.
+            </p>
+
+            <!-- AUFGABEN -->
+            <div class="mb-6">
+                <h3 class="text-sm font-bold uppercase tracking-wider mb-2" style="color: var(--teacher);">Aufgaben</h3>
+                <div id="manageTaskList" class="flex flex-col gap-2 mb-3"></div>
+                <div class="flex gap-2">
+                    <input id="newTaskEmojiCode" type="text" placeholder="Emoji-Code" class="manage-input rounded-xl px-3 py-2 text-sm w-28" oninput="previewEmoji('newTaskEmojiCode','newTaskPreview')">
+                    <span id="newTaskPreview" class="text-2xl flex items-center justify-center w-10">❓</span>
+                    <input id="newTaskName" type="text" placeholder="Name der Aufgabe" class="manage-input rounded-xl px-3 py-2 text-sm flex-1">
+                    <button onclick="addCustomTask()" class="btn-submit-teacher rounded-xl px-4 py-2 text-sm font-bold">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- BELOHNUNGEN -->
+            <div>
+                <h3 class="text-sm font-bold uppercase tracking-wider mb-2" style="color: var(--student);">Belohnungen</h3>
+                <div id="manageRewardList" class="flex flex-col gap-2 mb-3"></div>
+                <div class="flex gap-2">
+                    <input id="newRewardEmojiCode" type="text" placeholder="Emoji-Code" class="manage-input rounded-xl px-3 py-2 text-sm w-28" oninput="previewEmoji('newRewardEmojiCode','newRewardPreview')">
+                    <span id="newRewardPreview" class="text-2xl flex items-center justify-center w-10">❓</span>
+                    <input id="newRewardName" type="text" placeholder="Name der Belohnung" class="manage-input rounded-xl px-3 py-2 text-sm flex-1">
+                    <button onclick="addCustomReward()" class="btn-submit-student rounded-xl px-4 py-2 text-sm font-bold">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    </div>
+
+    <!-- APP LOGIC (kein Audio) -->
+    <script>
+        // ==================== EMOJI-CODE PARSER ====================
+        function safeFromCodePoint(cp) {
+            try {
+                if (isNaN(cp) || cp < 0) return null;
+                return String.fromCodePoint(cp);
+            } catch (e) { return null; }
+        }
+
+        function parseEmojiCode(raw) {
+            const input = (raw || '').trim();
+            if (!input) return null;
+
+            let m = input.match(/^&#(\d+);?$/);
+            if (m) return safeFromCodePoint(parseInt(m[1], 10));
+
+            m = input.match(/^&#x([0-9a-fA-F]+);?$/i);
+            if (m) return safeFromCodePoint(parseInt(m[1], 16));
+
+            m = input.match(/^(?:U\+|0x)([0-9a-fA-F]+)$/i);
+            if (m) return safeFromCodePoint(parseInt(m[1], 16));
+
+            if (/^\d+$/.test(input)) return safeFromCodePoint(parseInt(input, 10));
+            if (/^[0-9a-fA-F]+$/.test(input)) return safeFromCodePoint(parseInt(input, 16));
+
+            // Vermutlich wurde das Emoji direkt eingefügt
+            return input;
+        }
+
+        function previewEmoji(inputId, previewId) {
+            const val = document.getElementById(inputId).value;
+            const result = parseEmojiCode(val);
+            document.getElementById(previewId).innerText = result || '❓';
+        }
+
+        // ==================== STANDARD-DATEN ====================
+        const defaultTasks = [
+            { id: 'task_schreiben', name: 'Schreiben', emoji: '📝' },
+            { id: 'task_rechnen', name: 'Rechnen', emoji: '🔢' },
+            { id: 'task_lesen', name: 'Lesen', emoji: '📖' },
+            { id: 'task_aufraeumen', name: 'Aufräumen', emoji: '🧹' }
+        ];
+
+        const defaultRewards = [
+            { id: 'reward_lego', name: 'Lego', emoji: '🧱' },
+            { id: 'reward_knete', name: 'Knete', emoji: '🎨' },
+            { id: 'reward_hoerbuch', name: 'Hörbuch', emoji: '🎧' },
+            { id: 'reward_pause', name: 'Pause', emoji: '🏃' }
+        ];
+
+        let state = {
+            tasks: [],
+            rewards: [],
+
+            teacherTaskId: null,
+            teacherUnit: 'Aufg',
+            teacherValueStr: '',
+            teacherAllowedRewards: [], // [{id, name, emoji}]
+            teacherCommitted: null,    // { taskId, taskName, taskEmoji, unit, value, allowedRewards }
+            teacherAccepted: false,
+
+            studentRewardId: null,
+            studentRewardName: 'Wählen',
+            studentRewardEmoji: '❓',
+            studentValueStr: '',
+            studentCommitted: null,    // { rewardEmoji, rewardName, value }
+            studentAccepted: false
+        };
+
+        const elements = {
+            studentDraft: document.getElementById('studentDraft'),
+            studentUnitIndicator: document.getElementById('studentUnitIndicator'),
+            studentThumbsUpContainer: document.getElementById('studentThumbsUpContainer'),
+            studentThumbsUpBtn: document.getElementById('studentThumbsUpBtn'),
+            studentLiveFormula: document.getElementById('studentLiveFormula'),
+            studentRewardGrid: document.getElementById('studentRewardGrid'),
+            studentRewardPlaceholder: document.getElementById('studentRewardPlaceholder'),
+
+            activeLehrerSoll: document.getElementById('activeLehrerSoll'),
+            activeSchuelerHaben: document.getElementById('activeSchuelerHaben'),
+            matchIndicatorBadge: document.getElementById('matchIndicatorBadge'),
+            matchIcon: document.getElementById('matchIcon'),
+
+            taskGrid: document.getElementById('taskGrid'),
+            allowGrid: document.getElementById('allowGrid'),
+
+            teacherDraft: document.getElementById('teacherDraft'),
+            teacherSelectedText: document.getElementById('teacherSelectedText'),
+            teacherUnitAufgBtn: document.getElementById('teacherUnitAufgBtn'),
+            teacherUnitMinBtn: document.getElementById('teacherUnitMinBtn'),
+            allowedCountLabel: document.getElementById('allowedCountLabel'),
+            teacherThumbsUpContainer: document.getElementById('teacherThumbsUpContainer'),
+            teacherThumbsUpBtn: document.getElementById('teacherThumbsUpBtn'),
+            teacherLiveFormula: document.getElementById('teacherLiveFormula'),
+
+            dealScreen: document.getElementById('dealScreen'),
+            finalRewardEmoji: document.getElementById('finalRewardEmoji'),
+            finalRewardTitle: document.getElementById('finalRewardTitle'),
+            summaryTaskText: document.getElementById('summaryTaskText'),
+            finalTaskValue: document.getElementById('finalTaskValue'),
+            finalTaskTitle: document.getElementById('finalTaskTitle'),
+
+            resetLockBtn: document.getElementById('resetLockBtn'),
+            resetProgressBar: document.getElementById('resetProgressBar'),
+
+            manageModal: document.getElementById('manageModal'),
+            manageTaskList: document.getElementById('manageTaskList'),
+            manageRewardList: document.getElementById('manageRewardList')
+        };
+
+        function findTask(id) { return state.tasks.find(t => t.id === id); }
+        function findReward(id) { return state.rewards.find(r => r.id === id); }
+
+        // ==================== PERSISTENZ (localStorage, überlebt Neustarts) ====================
+        function saveCustomData() {
+            try {
+                localStorage.setItem('lernDealTasks', JSON.stringify(state.tasks));
+                localStorage.setItem('lernDealRewards', JSON.stringify(state.rewards));
+            } catch (e) { /* Speicher evtl. nicht verfügbar - kein Problem für die Sitzung */ }
+        }
+
+        function loadCustomData() {
+            try {
+                const t = localStorage.getItem('lernDealTasks');
+                const r = localStorage.getItem('lernDealRewards');
+                state.tasks = t ? JSON.parse(t) : [...defaultTasks];
+                state.rewards = r ? JSON.parse(r) : [...defaultRewards];
+            } catch (e) {
+                state.tasks = [...defaultTasks];
+                state.rewards = [...defaultRewards];
+            }
+            if (!state.tasks.length) state.tasks = [...defaultTasks];
+            if (state.rewards.length < 2) state.rewards = [...defaultRewards];
+        }
+
+        // ==================== RENDERING: AUFGABEN / BELOHNUNGEN ====================
+        function renderTaskButtons() {
+            elements.taskGrid.innerHTML = '';
+            state.tasks.forEach(t => {
+                const btn = document.createElement('button');
+                btn.className = 'task-btn py-3 rounded-xl text-sm font-bold transition-all' + (t.id === state.teacherTaskId ? ' is-active' : '');
+                btn.innerHTML = `<span class="text-lg mr-1">${t.emoji}</span>${t.name}`;
+                btn.onclick = () => selectTask(t.id);
+                elements.taskGrid.appendChild(btn);
+            });
+        }
+
+        function renderAllowButtons() {
+            elements.allowGrid.innerHTML = '';
+            state.rewards.forEach(r => {
+                const isActive = state.teacherAllowedRewards.some(a => a.id === r.id);
+                const btn = document.createElement('button');
+                btn.className = 'allow-btn py-3 rounded-xl text-sm font-bold transition-all' + (isActive ? ' is-active' : '');
+                btn.innerHTML = `<span class="text-lg mr-1">${r.emoji}</span>${r.name}`;
+                btn.onclick = () => toggleAllowedReward(r.id);
+                elements.allowGrid.appendChild(btn);
+            });
+        }
+
+        function renderStudentRewardButtons() {
+            elements.studentRewardGrid.innerHTML = '';
+            if (!state.teacherCommitted) return;
+
+            state.teacherCommitted.allowedRewards.forEach(r => {
+                const isSelected = state.studentRewardId === r.id;
+                const btn = document.createElement('button');
+                btn.className = 'reward-btn p-4 rounded-2xl flex items-center justify-center gap-3 active:scale-95 transition-all' + (isSelected ? ' is-selected' : '');
+                btn.innerHTML = `<span class="text-4xl">${r.emoji}</span><span class="text-xl font-bold">${r.name}</span>`;
+                btn.onclick = () => selectStudentReward(r.id);
+                elements.studentRewardGrid.appendChild(btn);
+            });
+        }
+
+        function renderManageLists() {
+            elements.manageTaskList.innerHTML = '';
+            state.tasks.forEach(t => {
+                const row = document.createElement('div');
+                row.className = 'manage-row rounded-xl px-3 py-2 flex items-center justify-between';
+                row.innerHTML = `<span class="flex items-center gap-2"><span class="text-xl">${t.emoji}</span><span class="text-sm font-bold" style="color: var(--ink);">${t.name}</span></span>`;
+                const delBtn = document.createElement('button');
+                delBtn.className = 'key-danger w-8 h-8 rounded-lg text-xs';
+                delBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+                delBtn.onclick = () => removeTask(t.id);
+                row.appendChild(delBtn);
+                elements.manageTaskList.appendChild(row);
+            });
+
+            elements.manageRewardList.innerHTML = '';
+            state.rewards.forEach(r => {
+                const row = document.createElement('div');
+                row.className = 'manage-row rounded-xl px-3 py-2 flex items-center justify-between';
+                row.innerHTML = `<span class="flex items-center gap-2"><span class="text-xl">${r.emoji}</span><span class="text-sm font-bold" style="color: var(--ink);">${r.name}</span></span>`;
+                const delBtn = document.createElement('button');
+                delBtn.className = 'key-danger w-8 h-8 rounded-lg text-xs';
+                delBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+                delBtn.onclick = () => removeReward(r.id);
+                row.appendChild(delBtn);
+                elements.manageRewardList.appendChild(row);
+            });
+        }
+
+        // ==================== VERWALTUNGS-MODAL ====================
+        function openManageModal() {
+            renderManageLists();
+            document.getElementById('newTaskEmojiCode').value = '';
+            document.getElementById('newTaskName').value = '';
+            document.getElementById('newTaskPreview').innerText = '❓';
+            document.getElementById('newRewardEmojiCode').value = '';
+            document.getElementById('newRewardName').value = '';
+            document.getElementById('newRewardPreview').innerText = '❓';
+            elements.manageModal.classList.remove('hidden');
+        }
+
+        function closeManageModal() {
+            elements.manageModal.classList.add('hidden');
+        }
+
+        function addCustomTask() {
+            const nameInput = document.getElementById('newTaskName');
+            const codeInput = document.getElementById('newTaskEmojiCode');
+            const name = nameInput.value.trim();
+            const emoji = parseEmojiCode(codeInput.value) || '⭐';
+            if (!name) return;
+
+            const id = 'task_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+            state.tasks.push({ id, name, emoji });
+            nameInput.value = '';
+            codeInput.value = '';
+            document.getElementById('newTaskPreview').innerText = '❓';
+
+            saveCustomData();
+            renderTaskButtons();
+            renderManageLists();
+        }
+
+        function removeTask(id) {
+            if (state.tasks.length <= 1) { return; }
+            state.tasks = state.tasks.filter(t => t.id !== id);
+            if (state.teacherTaskId === id) {
+                state.teacherTaskId = state.tasks[0].id;
+            }
+            saveCustomData();
+            renderTaskButtons();
+            renderManageLists();
+            updateUI();
+        }
+
+        function addCustomReward() {
+            const nameInput = document.getElementById('newRewardName');
+            const codeInput = document.getElementById('newRewardEmojiCode');
+            const name = nameInput.value.trim();
+            const emoji = parseEmojiCode(codeInput.value) || '⭐';
+            if (!name) return;
+
+            const id = 'reward_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+            state.rewards.push({ id, name, emoji });
+            nameInput.value = '';
+            codeInput.value = '';
+            document.getElementById('newRewardPreview').innerText = '❓';
+
+            saveCustomData();
+            renderAllowButtons();
+            renderManageLists();
+        }
+
+        function removeReward(id) {
+            if (state.rewards.length <= 2) { return; }
+            state.rewards = state.rewards.filter(r => r.id !== id);
+            state.teacherAllowedRewards = state.teacherAllowedRewards.filter(r => r.id !== id);
+            if (state.studentRewardId === id) {
+                state.studentRewardId = null;
+                state.studentRewardEmoji = '❓';
+                state.studentRewardName = 'Wählen';
+                state.studentCommitted = null;
+            }
+            saveCustomData();
+            renderAllowButtons();
+            renderStudentRewardButtons();
+            renderManageLists();
+            updateUI();
+        }
+
+        // ==================== UI SYNCHRONISATION ====================
+        function updateUI() {
+            renderTaskButtons();
+            renderAllowButtons();
+
+            elements.teacherDraft.innerText = state.teacherValueStr || '0';
+            const currentTask = findTask(state.teacherTaskId);
+            elements.teacherSelectedText.innerText = currentTask ? currentTask.name : 'Aufgabe';
+
+            if (state.teacherUnit === 'Aufg') {
+                elements.teacherUnitAufgBtn.className = "w-14 py-2 text-xs font-bold rounded-xl transition-all btn-submit-teacher";
+                elements.teacherUnitMinBtn.className = "w-14 py-2 text-xs font-bold rounded-xl transition-all key-btn";
+            } else {
+                elements.teacherUnitMinBtn.className = "w-14 py-2 text-xs font-bold rounded-xl transition-all btn-submit-teacher";
+                elements.teacherUnitAufgBtn.className = "w-14 py-2 text-xs font-bold rounded-xl transition-all key-btn";
+            }
+
+            elements.allowedCountLabel.innerText = `${state.teacherAllowedRewards.length}/2`;
+            elements.allowedCountLabel.className = state.teacherAllowedRewards.length === 2
+                ? "count-ok text-xs px-2.5 py-0.5 rounded font-black"
+                : "count-pending text-xs px-2.5 py-0.5 rounded font-black";
+
+            elements.studentDraft.innerText = state.studentValueStr || '0';
+
+            if (state.teacherCommitted) {
+                elements.studentUnitIndicator.innerText = state.teacherCommitted.unit;
+                elements.studentRewardGrid.classList.remove('hidden');
+                elements.studentRewardPlaceholder.classList.add('hidden');
+                renderStudentRewardButtons();
+            } else {
+                elements.studentUnitIndicator.innerText = state.teacherUnit;
+                elements.studentRewardGrid.classList.add('hidden');
+                elements.studentRewardPlaceholder.classList.remove('hidden');
+            }
+
+            let taskPart = `[Aufgabe]`;
+            if (state.teacherCommitted) {
+                taskPart = `${state.teacherCommitted.value} ${state.teacherCommitted.unit} ${state.teacherCommitted.taskEmoji}`;
+            } else if (currentTask) {
+                taskPart = `[Aufgabe] ${currentTask.emoji}`;
+            }
+
+            let studentProposedTaskPart = '';
+            if (state.studentCommitted && state.teacherCommitted) {
+                studentProposedTaskPart = ` (biete: ${state.studentCommitted.value} ${state.teacherCommitted.unit})`;
+            }
+
+            let rewardPart = state.studentRewardEmoji !== '❓' ? `${state.studentRewardEmoji}` : `[Belohnung]`;
+
+            const activeFormulaText = `Erst ${taskPart}${studentProposedTaskPart} ➔ Dann ${rewardPart}`;
+            elements.teacherLiveFormula.innerText = activeFormulaText;
+            elements.studentLiveFormula.innerText = activeFormulaText;
+
+            if (state.teacherCommitted) {
+                elements.activeLehrerSoll.innerHTML = `<span>${state.teacherCommitted.value} ${state.teacherCommitted.unit}</span> <span class="text-3xl">${state.teacherCommitted.taskEmoji}</span>`;
+            } else {
+                elements.activeLehrerSoll.innerText = '--';
+            }
+
+            if (state.studentCommitted && state.teacherCommitted) {
+                elements.activeSchuelerHaben.innerHTML = `<span>${state.studentCommitted.value} ${state.teacherCommitted.unit} ${state.teacherCommitted.taskEmoji}</span> <span class="text-3xl">für ${state.studentRewardEmoji}</span>`;
+            } else {
+                elements.activeSchuelerHaben.innerText = '--';
+            }
+
+            if (state.teacherCommitted && state.studentCommitted) {
+                elements.matchIndicatorBadge.className = "match-ready breathing w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer";
+                elements.matchIcon.className = "fa-solid fa-thumbs-up text-2xl";
+                elements.teacherThumbsUpContainer.classList.remove('invisible');
+                elements.studentThumbsUpContainer.classList.remove('invisible');
+            } else {
+                elements.matchIndicatorBadge.className = "match-idle w-14 h-14 rounded-full flex items-center justify-center transition-all";
+                elements.matchIcon.className = "fa-solid fa-thumbs-up text-2xl opacity-40";
+                elements.teacherThumbsUpContainer.classList.add('invisible');
+                elements.studentThumbsUpContainer.classList.add('invisible');
+            }
+
+            updateAcceptButtons();
+        }
+
+        function updateAcceptButtons() {
+            elements.teacherThumbsUpBtn.className = "thumb-btn px-6 py-2.5 rounded-2xl flex items-center gap-3 font-bold text-lg active:scale-95 transition-all"
+                + (state.teacherAccepted ? " is-accepted-teacher" : "");
+            elements.studentThumbsUpBtn.className = "thumb-btn px-6 py-2.5 rounded-2xl flex items-center gap-3 font-bold text-lg active:scale-95 transition-all"
+                + (state.studentAccepted ? " is-accepted-student" : "");
+        }
+
+        // ==================== SCHÜLER INTERAKTIONEN ====================
+        function pressStudentKey(key) {
+            if (key === 'back') {
+                state.studentValueStr = state.studentValueStr.slice(0, -1);
+            } else if (state.studentValueStr.length < 3) {
+                state.studentValueStr += key;
+            }
+            updateUI();
+        }
+
+        function clearStudentDraft() {
+            state.studentValueStr = '';
+            updateUI();
+        }
+
+        function selectStudentReward(id) {
+            const r = findReward(id);
+            if (!r) return;
+            state.studentRewardId = r.id;
+            state.studentRewardName = r.name;
+            state.studentRewardEmoji = r.emoji;
+            updateUI();
+        }
+
+        function commitStudent() {
+            const val = parseInt(state.studentValueStr) || 0;
+            if (val === 0 || !state.studentRewardId || !state.teacherCommitted) return;
+
+            state.studentCommitted = {
+                rewardEmoji: state.studentRewardEmoji,
+                rewardName: state.studentRewardName,
+                value: val
+            };
+            state.studentAccepted = false;
+            updateUI();
+        }
+
+        // ==================== LEHRER INTERAKTIONEN ====================
+        function pressTeacherKey(key) {
+            if (key === 'back') {
+                state.teacherValueStr = state.teacherValueStr.slice(0, -1);
+            } else if (state.teacherValueStr.length < 3) {
+                state.teacherValueStr += key;
+            }
+            updateUI();
+        }
+
+        function clearTeacherDraft() {
+            state.teacherValueStr = '';
+            updateUI();
+        }
+
+        function toggleTeacherUnit(unit) {
+            state.teacherUnit = unit;
+            updateUI();
+        }
+
+        function selectTask(id) {
+            state.teacherTaskId = id;
+            updateUI();
+        }
+
+        function toggleAllowedReward(id) {
+            const idx = state.teacherAllowedRewards.findIndex(r => r.id === id);
+            if (idx > -1) {
+                state.teacherAllowedRewards.splice(idx, 1);
+            } else if (state.teacherAllowedRewards.length < 2) {
+                const r = findReward(id);
+                if (r) state.teacherAllowedRewards.push({ id: r.id, name: r.name, emoji: r.emoji });
+            }
+            updateUI();
+        }
+
+        function commitTeacher() {
+            const val = parseInt(state.teacherValueStr) || 0;
+            const task = findTask(state.teacherTaskId);
+            if (val === 0 || state.teacherAllowedRewards.length !== 2 || !task) return;
+
+            state.teacherCommitted = {
+                taskId: task.id,
+                taskName: task.name,
+                taskEmoji: task.emoji,
+                unit: state.teacherUnit,
+                value: val,
+                allowedRewards: [...state.teacherAllowedRewards]
+            };
+
+            const isStillAllowed = state.teacherAllowedRewards.some(r => r.id === state.studentRewardId);
+            if (!isStillAllowed) {
+                state.studentRewardId = null;
+                state.studentRewardEmoji = '❓';
+                state.studentRewardName = 'Wählen';
+                state.studentCommitted = null;
+                state.studentAccepted = false;
+            }
+
+            state.teacherAccepted = false;
+            updateUI();
+        }
+
+        // ==================== ZUSTIMMUNG ====================
+        function toggleTeacherAccept() {
+            if (!state.teacherCommitted || !state.studentCommitted) return;
+            state.teacherAccepted = !state.teacherAccepted;
+            updateUI();
+            checkDealConditions();
+        }
+
+        function toggleStudentAccept() {
+            if (!state.teacherCommitted || !state.studentCommitted) return;
+            state.studentAccepted = !state.studentAccepted;
+            updateUI();
+            checkDealConditions();
+        }
+
+        function checkDealConditions() {
+            if (state.teacherAccepted && state.studentAccepted) {
+                triggerFinalDeal();
+            }
+        }
+
+        function triggerFinalDeal() {
+            spawnSparks();
+
+            const finalQuantity = state.studentCommitted.value;
+            const taskEmoji = state.teacherCommitted.taskEmoji;
+
+            elements.finalRewardEmoji.innerText = state.studentCommitted.rewardEmoji;
+            elements.finalRewardTitle.innerText = state.studentCommitted.rewardName;
+
+            elements.finalTaskValue.innerText = `${finalQuantity} ${state.teacherCommitted.unit}`;
+            elements.finalTaskTitle.innerText = `${taskEmoji} ${state.teacherCommitted.taskName}`;
+
+            elements.summaryTaskText.innerText = `${finalQuantity} ${state.teacherCommitted.unit} ${state.teacherCommitted.taskName} ${taskEmoji}`;
+
+            elements.dealScreen.classList.remove('hidden');
+        }
+
+        // ==================== RESET (HALTEN, SABOTAGE-SCHUTZ) ====================
+        let resetInterval = null;
+        let resetProgressVal = 0;
+
+        function startReset() {
+            resetProgressVal = 0;
+            elements.resetProgressBar.style.width = '0%';
+            resetInterval = setInterval(() => {
+                resetProgressVal += 2;
+                if (resetProgressVal >= 100) {
+                    resetProgressVal = 100;
+                    clearInterval(resetInterval);
+                    executeGlobalReset();
+                }
+                elements.resetProgressBar.style.width = `${resetProgressVal}%`;
+            }, 40);
+        }
+
+        function stopReset() {
+            if (resetInterval) {
+                clearInterval(resetInterval);
+                resetInterval = null;
+            }
+            resetProgressVal = 0;
+            elements.resetProgressBar.style.width = '0%';
+        }
+
+        function executeGlobalReset() {
+            state.teacherTaskId = state.tasks[0] ? state.tasks[0].id : null;
+            state.teacherUnit = 'Aufg';
+            state.teacherValueStr = '';
+            state.teacherAllowedRewards = [];
+            state.teacherCommitted = null;
+            state.teacherAccepted = false;
+
+            state.studentRewardId = null;
+            state.studentRewardName = 'Wählen';
+            state.studentRewardEmoji = '❓';
+            state.studentValueStr = '';
+            state.studentCommitted = null;
+            state.studentAccepted = false;
+
+            elements.dealScreen.classList.add('hidden');
+            updateUI();
+        }
+
+        function registerResetButton() {
+            const startHandler = (e) => { e.preventDefault(); startReset(); };
+            const stopHandler = (e) => { e.preventDefault(); stopReset(); };
+
+            elements.resetLockBtn.addEventListener('mousedown', startHandler);
+            elements.resetLockBtn.addEventListener('mouseup', stopHandler);
+            elements.resetLockBtn.addEventListener('mouseleave', stopHandler);
+            elements.resetLockBtn.addEventListener('touchstart', startHandler);
+            elements.resetLockBtn.addEventListener('touchend', stopHandler);
+        }
+
+        function spawnSparks() {
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            for (let i = 0; i < 14; i++) {
+                const spark = document.createElement('i');
+                spark.className = 'fa-solid fa-star spark text-3xl z-50';
+                spark.style.color = 'var(--gold)';
+                spark.style.left = `${Math.random() * 100}vw`;
+                spark.style.top = `${Math.random() * 40}vh`;
+                spark.style.animationDelay = `${Math.random() * 0.4}s`;
+                document.body.appendChild(spark);
+                setTimeout(() => spark.remove(), 2600);
+            }
+        }
+
+        window.onload = function () {
+            loadCustomData();
+            state.teacherTaskId = state.tasks[0].id;
+            updateUI();
+            registerResetButton();
+        };
+    </script>
+</body>
+</html><!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════════╗
   ║  EduLayer – Echtzeit-Annotations-PWA  (Version 6.1)              ║
