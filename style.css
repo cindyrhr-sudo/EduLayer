@@ -407,6 +407,15 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   font-size: 11px; color: var(--text-3);
   pointer-events: none; user-select: none;
 }
+
+/* Platzhalter für noch nicht gerenderte Seiten (Lazy Loading) */
+.seite-container--platzhalter {
+  background: var(--panel-bg);
+  display: flex; align-items: center; justify-content: center;
+}
+.seite-platzhalter-label {
+  font-size: 13px; color: var(--text-3); font-weight: 500;
+}
 .pdf-canvas { display: block; position: relative; z-index: 1; }
 .zeichen-canvas {
   position: absolute; inset: 0; z-index: 2;
