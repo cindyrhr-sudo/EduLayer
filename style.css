@@ -14,12 +14,12 @@
    4.  Sidebar
    5.  Werkzeug-Buttons
    6.  Farbpalette
-   7.  Flyout-Untermenüs  ← GEÄNDERT
+   7.  Flyout-Untermenüs
    8.  Scroll-Modus
    9.  Zoom-Wrapper & PDF
   10.  Zoom-Steuerung
   11.  Start-Anzeige
-  12.  Geodreieck          ← GEÄNDERT
+  12.  Geodreieck
   13.  Fokus-Toolbar
   14.  Spotlight
   15.  Notizen-Panel
@@ -421,9 +421,7 @@ body.scroll-modus .zeichen-canvas { cursor: grab; pointer-events: none; }
   position: absolute; inset: 0; z-index: 2;
   cursor: crosshair; touch-action: none;
 }
-.zeichen-canvas[data-werkzeug="radierer"]   { cursor: cell; }
 .zeichen-canvas[data-werkzeug="textmarker"] { cursor: text; }
-.lehrer-canvas { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 
 
 /* ═══════════════════════════════════════════════════════════════════
