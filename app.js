@@ -1,15 +1,26 @@
 /**
  * /*==================================================================
- *  *  EduLayer - Haupt-Anwendungslogik  (Version 6.1)                 *
+ *  *  EduLayer - Haupt-Anwendungslogik  (Version 7.0)                 *
  *  *==================================================================
  *
- * ÄNDERUNGEN v6.1:
- *  - Flyout: position:fixed + flyoutPositionieren() behebt iOS-
- *    Safari overflow-clip-Bug (overflow-y:auto bricht overflow-x:visible)
- *  - Geodreieck: komplett neu gezeichnet als realistisches deutsches
- *    Schuldreieck (Winkelhalbkreis 0-90°, cm-Skalen auf 3 Seiten,
- *    5mm-Parallellinien, korrekte Winkelangaben)
- *  - transform-origin des Wrappers korrigiert: Drehpunkt = Spitze (0,0)
+ * ÄNDERUNGEN v7.0 (Stabilitäts-Umbau):
+ *  - Radierer komplett entfernt: war die einzige Stelle, an der Canvas-
+ *    Pixel und Annotationsdaten auseinanderlaufen konnten. "Seite
+ *    leeren" deckt den Bedarf im Präsentationskontext ab.
+ *  - Undo/Redo gehärtet: Redo-Verlauf wird jetzt bei jeder neuen
+ *    Zeichenaktion zuverlässig geleert; kaputte Bild-Vorschau bei
+ *    gerader Linie/Textmarker durch synchronen Aufbau aus den
+ *    Annotationsdaten ersetzt (canvasNeuZeichnen statt Image-Umweg).
+ *  - Seiten-Virtualisierung: Seiten, die weit aus dem sichtbaren
+ *    Bereich gescrollt sind, werden wieder zu leichten Platzhaltern
+ *    zurückgebaut (Canvas-Speicher wird freigegeben). Annotationsdaten
+ *    bleiben unabhängig vom Canvas-Zustand erhalten und werden beim
+ *    erneuten Sichtbarwerden identisch wiederhergestellt.
+ *  - PDF-Export komplett auf Vektor-Zeichnung umgestellt: Striche
+ *    werden direkt aus den gespeicherten Punktdaten in den PDF-
+ *    Seiteninhalt gezeichnet (pdf-lib drawLine), nicht mehr als
+ *    Raster-Bild vom Canvas. Dadurch unabhängig vom Virtualisierungs-
+ *    Zustand einer Seite und dauerhaft fest im Dokument verankert.
  *
  * STRUKTUR:
  *  1.  KONFIGURATION
@@ -46,7 +57,6 @@ const KONFIGURATION = {
   GERADE_LINIE_PX:   2,   // Standardbreite gerade Linie
   TEXTMARKER_PX:     18,
   TEXTMARKER_ALPHA:  0.32,
-  RADIERER_PX:       28,
   LASER_PX:          6,
   LASER_SCHWEIF_MAX: 28,
   LASER_FADE_MS:     600,
@@ -183,8 +193,6 @@ const D = {
 
   farbDots:          document.querySelectorAll('.farb-dot'),
 
-  btnRadierer:       document.getElementById('btn-radierer'),
-
   btnUndo:           document.getElementById('btn-undo'),
   btnRedo:           document.getElementById('btn-redo'),
   btnSeiteLeeren:    document.getElementById('btn-seite-leeren'),
@@ -238,8 +246,6 @@ const D = {
   btnSidebarRechts:      document.getElementById('btn-sidebar-rechts'),
   sliderLaserDauer:      document.getElementById('slider-laser-dauer'),
   laserDauerAnzeige:     document.getElementById('laser-dauer-anzeige'),
-  sliderRadierer:        document.getElementById('slider-radierer'),
-  radiererAnzeige:       document.getElementById('radierer-anzeige'),
   sliderGeoKalibrierung:  document.getElementById('slider-geo-kalibrierung'),
   geoKalibrierungAnzeige: document.getElementById('geo-kalibrierung-anzeige'),
   sliderLinealLaenge:     document.getElementById('slider-lineal-laenge'),
@@ -345,12 +351,6 @@ function pinchAbstand(t) {
 function zeitstempel() {
   const d = new Date(), z = n => String(n).padStart(2,'0');
   return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}_${z(d.getHours())}-${z(d.getMinutes())}`;
-}
-
-function base64ZuBytes(b64) {
-  const bin = atob(b64), out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
 }
 
 function winkelZwischen(cx, cy, px, py) {
@@ -721,11 +721,6 @@ function einstellungenInit() {
     KONFIGURATION.LASER_FADE_MS = +D.sliderLaserDauer.value;
     D.laserDauerAnzeige.textContent = `${D.sliderLaserDauer.value} ms`;
   });
-  D.sliderRadierer.addEventListener('input', () => {
-    KONFIGURATION.RADIERER_PX = +D.sliderRadierer.value;
-    D.radiererAnzeige.textContent = `${D.sliderRadierer.value} px`;
-    if (Z.werkzeug === 'radierer') Z.strichbreite = KONFIGURATION.RADIERER_PX;
-  });
   if (D.sliderGeoKalibrierung) {
     D.sliderGeoKalibrierung.addEventListener('input', () => {
       const prozent = +D.sliderGeoKalibrierung.value;
@@ -864,12 +859,8 @@ function werkzeugWaehlen(name) {
     'stift-dick':   KONFIGURATION.STIFT_DICK_PX,
     'textmarker':   KONFIGURATION.TEXTMARKER_PX,
     'gerade-linie': KONFIGURATION.GERADE_LINIE_PX,
-    'radierer':     KONFIGURATION.RADIERER_PX,
     'laser':        KONFIGURATION.LASER_PX,
   })[name] ?? KONFIGURATION.STIFT_DUENN_PX;
-
-  D.btnRadierer.classList.toggle('aktiv', name === 'radierer');
-  D.btnRadierer.setAttribute('aria-pressed', name === 'radierer' ? 'true' : 'false');
 
   if (['stift-duenn','stift-dick','textmarker','gerade-linie'].includes(name)) {
     D.btnStiftAktiv.classList.add('aktiv');
@@ -914,8 +905,6 @@ function sidebarInit() {
   D.farbDots.forEach(dot => {
     dot.addEventListener('click', () => { if (dot.dataset.farbe) farbeWaehlen(dot.dataset.farbe); });
   });
-
-  D.btnRadierer.addEventListener('click', () => werkzeugWaehlen('radierer'));
 
   D.btnUndo.addEventListener('click',        undoAusfuehren);
   D.btnRedo.addEventListener('click',        redoAusfuehren);
@@ -1058,7 +1047,7 @@ function strichStarten(e, canvas) {
       offCanvas: off, offCtx,
     };
     if (!Z.annotationen[seite]) Z.annotationen[seite] = [];
-  } else if (Z.werkzeug !== 'radierer') {
+  } else {
     if (!Z.annotationen[seite]) Z.annotationen[seite] = [];
     Z.aktuellerStrich = {
       punkte: [{ ...p }], farbe: Z.strichfarbe,
@@ -1066,8 +1055,6 @@ function strichStarten(e, canvas) {
     };
     // Kein harter Punkt beim Start - der erste Strich in strichBewegen
     // beginnt sofort mit einer weichen Linie, was sauberer aussieht.
-  } else {
-    Z.aktuellerStrich = null;
   }
 }
 
@@ -1085,23 +1072,15 @@ function strichBewegen(e, canvas) {
   p = koordinatenGegl(p);           // Exponential-Glättung gegen Finger-Zitter
   p = linealUndGeoSnap(e, canvas, p);
 
-  // Gerade Linie: Vorschau während des Ziehens
+  // Gerade Linie: Vorschau während des Ziehens.
+  // canvasNeuZeichnen() baut den Canvas synchron aus Z.annotationen auf
+  // (kein Bild-Umweg, keine Race Condition) - darüber wird die
+  // Vorschaulinie gelegt.
   if (Z.werkzeug === 'gerade-linie' && Z.geradeLinieStart) {
     const seite = +canvas.closest('.seite-container').dataset.seite;
-    const snap = Z.undoVerlauf[seite];
+    canvasNeuZeichnen(seite);
     const ctx = canvas.getContext('2d');
-    if (snap?.length) {
-      const img = new Image();
-      img.onload = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        geradeLinieZeichnen(ctx, Z.geradeLinieStart, p, Z.strichfarbe, Z.strichbreite, Z.linienstil);
-      };
-      img.src = snap[snap.length - 1];
-    } else {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      geradeLinieZeichnen(ctx, Z.geradeLinieStart, p, Z.strichfarbe, Z.strichbreite, Z.linienstil);
-    }
+    geradeLinieZeichnen(ctx, Z.geradeLinieStart, p, Z.strichfarbe, Z.strichbreite, Z.linienstil);
     Z.letzterPunkt = p;
     return;
   }
@@ -1112,28 +1091,13 @@ function strichBewegen(e, canvas) {
     offCtx.moveTo(Z.letzterPunkt.x, Z.letzterPunkt.y);
     offCtx.lineTo(p.x, p.y);
     offCtx.stroke();
-    const ctx = canvas.getContext('2d');
     const seite = +canvas.closest('.seite-container').dataset.seite;
-    const snap = Z.undoVerlauf[seite];
-    if (snap?.length) {
-      const img = new Image();
-      img.onload = () => {
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(img, 0, 0);
-        ctx.globalAlpha = KONFIGURATION.TEXTMARKER_ALPHA;
-        ctx.drawImage(Z.aktuellerStrich.offCanvas, 0, 0);
-        ctx.globalAlpha = 1;
-      };
-      img.src = snap[snap.length-1];
-    }
-    Z.aktuellerStrich.punkte.push({ ...p });
-  } else if (Z.werkzeug === 'radierer') {
+    canvasNeuZeichnen(seite);
     const ctx = canvas.getContext('2d');
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.lineWidth = Z.strichbreite; ctx.lineCap = 'round';
-    ctx.strokeStyle = 'rgba(0,0,0,1)';
-    ctx.beginPath(); ctx.moveTo(Z.letzterPunkt.x,Z.letzterPunkt.y); ctx.lineTo(p.x,p.y); ctx.stroke();
-    ctxReset(ctx);
+    ctx.globalAlpha = KONFIGURATION.TEXTMARKER_ALPHA;
+    ctx.drawImage(Z.aktuellerStrich.offCanvas, 0, 0);
+    ctx.globalAlpha = 1;
+    Z.aktuellerStrich.punkte.push({ ...p });
   } else {
     const ctx = canvas.getContext('2d');
     ctx.globalCompositeOperation = 'source-over';
@@ -1173,28 +1137,16 @@ function strichBeenden(e, canvas) {
   }
 
   if (Z.werkzeug === 'textmarker' && Z.aktuellerStrich?.offCanvas) {
-    const ctx = canvas.getContext('2d');
     const seite = +canvas.closest('.seite-container').dataset.seite;
-    const snap = Z.undoVerlauf[seite];
-    if (snap?.length) {
-      const img = new Image();
-      img.onload = () => {
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(img,0,0);
-        ctx.globalAlpha = KONFIGURATION.TEXTMARKER_ALPHA;
-        ctx.drawImage(Z.aktuellerStrich.offCanvas,0,0);
-        ctx.globalAlpha = 1;
-        if (!Z.annotationen[seite]) Z.annotationen[seite] = [];
-        Z.annotationen[seite].push({
-          punkte: Z.aktuellerStrich.punkte,
-          farbe: Z.aktuellerStrich.farbe,
-          breite: Z.aktuellerStrich.breite,
-          werkzeug: 'textmarker',
-          alpha: Z.aktuellerStrich.alpha,
-        });
-      };
-      img.src = snap[snap.length-1];
-    }
+    if (!Z.annotationen[seite]) Z.annotationen[seite] = [];
+    Z.annotationen[seite].push({
+      punkte: Z.aktuellerStrich.punkte,
+      farbe: Z.aktuellerStrich.farbe,
+      breite: Z.aktuellerStrich.breite,
+      werkzeug: 'textmarker',
+      alpha: Z.aktuellerStrich.alpha,
+    });
+    canvasNeuZeichnen(seite);
   } else if (Z.aktuellerStrich) {
     const seite = +canvas.closest('.seite-container').dataset.seite;
     if (!Z.annotationen[seite]) Z.annotationen[seite] = [];
@@ -1309,13 +1261,14 @@ function laserModeAus() {
 ==================================================================== */
 function undoSnapshot(seite) {
   if (!Z.undoVerlauf[seite]) Z.undoVerlauf[seite] = [];
-  if (!Z.redoVerlauf[seite]) Z.redoVerlauf[seite] = [];
   const anzahl = Z.annotationen[seite]?.length ?? 0;
   const v = Z.undoVerlauf[seite];
-  // Duplikat vermeiden
-  if (v.length > 0 && v[v.length-1] === anzahl) return;
-  v.push(anzahl);
-  if (v.length > 50) v.shift();
+  // Duplikat vermeiden, aber Redo-Verlauf IMMER leeren: sobald eine neue
+  // Zeichenaktion beginnt, ist der bisherige Wiederholen-Pfad ungültig.
+  if (v.length === 0 || v[v.length - 1] !== anzahl) {
+    v.push(anzahl);
+    if (v.length > 50) v.shift();
+  }
   Z.redoVerlauf[seite] = [];
 }
 
@@ -1350,20 +1303,6 @@ function redoAusfuehren() {
   const ziel = Z.redoVerlauf[seite].pop();
   if (Z.annotationen[seite]) Z.annotationen[seite].length = ziel;
   canvasNeuZeichnen(seite);
-}
-
-function snapshotLaden(canvas, url) {
-  // Nur noch für spezielle Fälle (z.B. externer Aufruf).
-  // Das normale Undo/Redo läuft jetzt strich-basiert ohne toDataURL.
-  const ctx = canvas.getContext('2d');
-  const img = new Image();
-  img.onload = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-  };
-  img.src = url;
 }
 
 function seiteLeeren() {
@@ -2060,6 +1999,13 @@ async function pdfLaden(datei) {
  * Kein Canvas, nur ein div mit korrekter Größe und einem Lade-Spinner.
  * Der IntersectionObserver löst das echte Rendern aus, sobald sichtbar.
  */
+/**
+ * Legt einen Platzhalter-div für eine (noch) nicht gerenderte Seite an.
+ * Kein Canvas, nur ein div mit korrekter Größe und Lade-Label - kostet
+ * praktisch keinen Speicher. Wird sowohl beim ersten Laden für alle
+ * Seiten außer Seite 1 verwendet, als auch erneut, wenn eine bereits
+ * gerenderte Seite wieder entladen wird (seiteEntladen()).
+ */
 function seitePlatzhalterAnlegen(nr, breite, hoehe) {
   const cont = document.createElement('div');
   cont.className = 'seite-container seite-container--platzhalter';
@@ -2068,8 +2014,16 @@ function seitePlatzhalterAnlegen(nr, breite, hoehe) {
   cont.style.height = `${hoehe}px`;
   cont.innerHTML = `<div class="seite-platzhalter-label">Seite ${nr}</div>`;
   D.pdfContainer.appendChild(cont);
+  seitePlatzhalterBeobachten(cont, nr);
+  return cont;
+}
 
-  // Lazy-Load: sobald der Platzhalter sichtbar wird -> echtes Rendern
+/**
+ * Beobachtet einen Platzhalter: sobald er in die Nähe des sichtbaren
+ * Bereichs scrollt (rootMargin 200px = etwas Vorlauf), wird die Seite
+ * über seiteLazyRendern() echt aufgebaut.
+ */
+function seitePlatzhalterBeobachten(cont, nr) {
   const observer = new IntersectionObserver(async (ee) => {
     for (const entry of ee) {
       if (entry.isIntersecting) {
@@ -2081,53 +2035,65 @@ function seitePlatzhalterAnlegen(nr, breite, hoehe) {
   observer.observe(cont);
 }
 
-async function pdfSeiteRendern(nr) {
+/**
+ * Baut die eigentlichen Canvases (PDF + Zeichnung) für eine Seite in
+ * einem bereits im DOM vorhandenen Container auf. Wird sowohl beim
+ * ersten Rendern als auch beim erneuten Aufbau nach einem Entladen
+ * verwendet - beide Pfade teilen sich dieselbe Logik, damit sie nicht
+ * auseinanderlaufen können.
+ */
+async function seiteContainerAufbauen(nr, container) {
   const seite    = await Z.pdfDokument.getPage(nr);
   const dpr      = KONFIGURATION.ZEICHEN_DPR;
   const viewport = seite.getViewport({ scale: KONFIGURATION.PDF_SCALE });
   const W = Math.floor(viewport.width), H = Math.floor(viewport.height);
-  Z.viewports[nr] = { breite:W, hoehe:H };
+  Z.viewports[nr] = { breite: W, hoehe: H };
   Z.pxProCm[nr]   = KONFIGURATION.PDF_SCALE * 72 / 2.54;
 
-  const cont = document.createElement('div');
-  cont.className='seite-container'; cont.dataset.seite=nr;
-  cont.style.width=`${W}px`; cont.style.height=`${H}px`;
+  container.classList.remove('seite-container--platzhalter');
+  container.style.width  = `${W}px`;
+  container.style.height = `${H}px`;
+  container.innerHTML = '';
 
   const pdfC = document.createElement('canvas');
-  pdfC.className='pdf-canvas';
-  pdfC.width=W*dpr; pdfC.height=H*dpr;
-  pdfC.style.width=`${W}px`; pdfC.style.height=`${H}px`;
+  pdfC.className = 'pdf-canvas';
+  pdfC.width = W * dpr; pdfC.height = H * dpr;
+  pdfC.style.width = `${W}px`; pdfC.style.height = `${H}px`;
   const pdfCtx = pdfC.getContext('2d');
   pdfCtx.scale(dpr, dpr);
   pdfCtx.imageSmoothingEnabled = true;
   pdfCtx.imageSmoothingQuality = 'high';
-  cont.appendChild(pdfC);
+  container.appendChild(pdfC);
 
   const zC = document.createElement('canvas');
-  zC.className='zeichen-canvas';
-  zC.width=W*dpr; zC.height=H*dpr;
-  zC.style.width=`${W}px`; zC.style.height=`${H}px`;
-  zC.dataset.werkzeug=Z.werkzeug;
+  zC.className = 'zeichen-canvas';
+  zC.width = W * dpr; zC.height = H * dpr;
+  zC.style.width = `${W}px`; zC.style.height = `${H}px`;
+  zC.dataset.werkzeug = Z.werkzeug;
   const zCtx = zC.getContext('2d');
   zCtx.scale(dpr, dpr);
   zCtx.imageSmoothingEnabled = true;
   zCtx.imageSmoothingQuality = 'high';
-  cont.appendChild(zC);
+  container.appendChild(zC);
 
-  const lC = document.createElement('canvas');
-  lC.className='lehrer-canvas';
-  lC.width=W*dpr; lC.height=H*dpr;
-  lC.style.width=`${W}px`; lC.style.height=`${H}px`;
-  lC.setAttribute('aria-hidden','true');
-  cont.appendChild(lC);
-
-  D.pdfContainer.appendChild(cont);
-  await seite.render({canvasContext: pdfCtx, viewport}).promise;
+  await seite.render({ canvasContext: pdfCtx, viewport }).promise;
   zeichenListeners(zC);
   if (Z.annotationen[nr]?.length) canvasNeuZeichnen(nr);
+
   if (!Z.gerenderteSeitenCanvas) Z.gerenderteSeitenCanvas = new Set();
   Z.gerenderteSeitenCanvas.add(nr);
 
+  seitenSichtbarkeitBeobachten(container, nr);
+  seitenEntladungBeobachten(container, nr);
+}
+
+/**
+ * Merkt sich, welche Seite gerade "aktiv" ist (für Geodreieck/Lineal-
+ * Kalibrierung und die Seiten-Anzeige in den Notizen). Unverändert
+ * gegenüber der Vorversion, nur in eine eigene Funktion ausgelagert,
+ * damit sie für Erst- und Wiederaufbau gemeinsam genutzt werden kann.
+ */
+function seitenSichtbarkeitBeobachten(container, nr) {
   new IntersectionObserver(ee => {
     ee.forEach(e => {
       if (e.isIntersecting && e.intersectionRatio >= 0.4) {
@@ -2137,109 +2103,207 @@ async function pdfSeiteRendern(nr) {
         if (Z.linealAktiv && seiteAlt !== nr) linealSkalieren();
       }
     });
-  },{root:D.zoomWrapper,threshold:0.4}).observe(cont);
+  }, { root: D.zoomWrapper, threshold: 0.4 }).observe(container);
 }
 
 /**
- * Lazy-Render: Ersetzt einen Platzhalter-div durch vollständige Canvas.
- * Wird aufgerufen, wenn der Platzhalter erstmals in den Viewport scrollt.
+ * Kern der Speicher-Entlastung: sobald eine gerenderte Seite weit genug
+ * aus dem sichtbaren Bereich herausgescrollt ist (rootMargin 1500px -
+ * knapp zwei Bildschirmhöhen Puffer, damit normales Scrollen nicht
+ * ständig neu rendert), werden ihre Canvases wieder freigegeben. Die
+ * Annotationsdaten (Z.annotationen) bleiben davon komplett unberührt,
+ * da sie unabhängig vom Canvas-DOM gespeichert werden - die Seite kann
+ * jederzeit wieder identisch aufgebaut werden (seiteLazyRendern).
+ */
+function seitenEntladungBeobachten(container, nr) {
+  const observer = new IntersectionObserver(ee => {
+    ee.forEach(e => {
+      if (!e.isIntersecting) {
+        observer.disconnect();
+        seiteEntladen(nr, container);
+      }
+    });
+  }, { root: D.zoomWrapper, rootMargin: '1500px', threshold: 0 });
+  observer.observe(container);
+}
+
+/**
+ * Baut eine gerenderte Seite zurück zu einem leichten Platzhalter um.
+ * canvas.width/height werden explizit auf 0 gesetzt, damit der Browser
+ * den zugehörigen Speicher (Backing-Store) tatsächlich freigibt, statt
+ * ihn nur unsichtbar im DOM vorzuhalten. Die aktuell sichtbare Seite
+ * wird nie entladen, damit während des Zeichnens nichts verschwindet.
+ */
+function seiteEntladen(nr, container) {
+  if (nr === Z.aktiveSeite) return;
+  if (!Z.gerenderteSeitenCanvas?.has(nr)) return;
+
+  container.querySelectorAll('canvas').forEach(c => { c.width = 0; c.height = 0; });
+  const vp = Z.viewports[nr];
+  container.innerHTML = '';
+  container.classList.add('seite-container--platzhalter');
+  if (vp) { container.style.width = `${vp.breite}px`; container.style.height = `${vp.hoehe}px`; }
+  container.innerHTML = `<div class="seite-platzhalter-label">Seite ${nr}</div>`;
+
+  Z.gerenderteSeitenCanvas.delete(nr);
+  seitePlatzhalterBeobachten(container, nr);
+}
+
+async function pdfSeiteRendern(nr) {
+  const cont = document.createElement('div');
+  cont.className = 'seite-container';
+  cont.dataset.seite = nr;
+  D.pdfContainer.appendChild(cont);
+  await seiteContainerAufbauen(nr, cont);
+}
+
+/**
+ * Lazy-Render: Baut einen Platzhalter-div zu vollständigen Canvases
+ * aus. Wird aufgerufen, wenn eine Seite erstmals in den Viewport
+ * scrollt, UND wenn eine zuvor entladene Seite wieder angenähert wird -
+ * beide Fälle sind aus Sicht dieser Funktion identisch.
  */
 async function seiteLazyRendern(nr) {
   if (Z.gerenderteSeitenCanvas?.has(nr)) return;
-  const platzhalter = D.pdfContainer.querySelector(
-    `.seite-container[data-seite="${nr}"]`
-  );
+  const platzhalter = D.pdfContainer.querySelector(`.seite-container[data-seite="${nr}"]`);
   if (!platzhalter) return;
-
   try {
-    const seite    = await Z.pdfDokument.getPage(nr);
-    const dpr      = KONFIGURATION.ZEICHEN_DPR;
-    const viewport = seite.getViewport({ scale: KONFIGURATION.PDF_SCALE });
-    const W = Math.floor(viewport.width), H = Math.floor(viewport.height);
-    Z.viewports[nr] = { breite:W, hoehe:H };
-    Z.pxProCm[nr]   = KONFIGURATION.PDF_SCALE * 72 / 2.54;
-
-    platzhalter.style.width  = `${W}px`;
-    platzhalter.style.height = `${H}px`;
-    platzhalter.classList.remove('seite-container--platzhalter');
-    platzhalter.innerHTML = '';
-
-    const pdfC = document.createElement('canvas');
-    pdfC.className='pdf-canvas';
-    pdfC.width=W*dpr; pdfC.height=H*dpr;
-    pdfC.style.width=`${W}px`; pdfC.style.height=`${H}px`;
-    const pdfCtx = pdfC.getContext('2d');
-    pdfCtx.scale(dpr, dpr);
-    pdfCtx.imageSmoothingEnabled = true;
-    pdfCtx.imageSmoothingQuality = 'high';
-    platzhalter.appendChild(pdfC);
-
-    const zC = document.createElement('canvas');
-    zC.className='zeichen-canvas';
-    zC.width=W*dpr; zC.height=H*dpr;
-    zC.style.width=`${W}px`; zC.style.height=`${H}px`;
-    zC.dataset.werkzeug=Z.werkzeug;
-    const zCtx = zC.getContext('2d');
-    zCtx.scale(dpr, dpr);
-    zCtx.imageSmoothingEnabled = true;
-    zCtx.imageSmoothingQuality = 'high';
-    platzhalter.appendChild(zC);
-
-    const lC = document.createElement('canvas');
-    lC.className='lehrer-canvas';
-    lC.width=W*dpr; lC.height=H*dpr;
-    lC.style.width=`${W}px`; lC.style.height=`${H}px`;
-    lC.setAttribute('aria-hidden','true');
-    platzhalter.appendChild(lC);
-
-    await seite.render({canvasContext: pdfCtx, viewport}).promise;
-    zeichenListeners(zC);
-    if (Z.annotationen[nr]?.length) canvasNeuZeichnen(nr);
-    if (!Z.gerenderteSeitenCanvas) Z.gerenderteSeitenCanvas = new Set();
-    Z.gerenderteSeitenCanvas.add(nr);
-
-    new IntersectionObserver(ee => {
-      ee.forEach(e => {
-        if (e.isIntersecting && e.intersectionRatio >= 0.4) {
-          const seiteAlt = Z.aktiveSeite;
-          Z.aktiveSeite = nr;
-          if (Z.geodreieckAktiv && seiteAlt !== nr) geodreieckSkalieren();
-          if (Z.linealAktiv && seiteAlt !== nr) linealSkalieren();
-        }
-      });
-    },{root:D.zoomWrapper,threshold:0.4}).observe(platzhalter);
-
-  } catch(err) {
+    await seiteContainerAufbauen(nr, platzhalter);
+  } catch (err) {
     console.warn(`[EduLayer] Lazy-Render Seite ${nr}:`, err);
   }
 }
 
 
 /* ===================================================================
-   18. PDF-EXPORT
+   18. PDF-EXPORT (Vektor-Zeichnung, kanvasunabhängig)
+   -----------------------------------------------------------------
+   Striche werden NICHT mehr als Raster-Bild vom Zeichen-Canvas
+   exportiert, sondern direkt aus den in Z.annotationen gespeicherten
+   Punktdaten in den PDF-Seiteninhalt gezeichnet (page.drawLine aus
+   pdf-lib). Das hat zwei wichtige Vorteile:
+
+   1. Der Export funktioniert unabhängig davon, ob eine Seite gerade
+      als Canvas gerendert oder (durch die Seiten-Virtualisierung)
+      bereits wieder zu einem Platzhalter zurückgebaut wurde - er
+      braucht nie ein zeichenCanvas()-Element.
+   2. Die Striche werden direkter, dauerhafter Seiteninhalt des PDFs
+      (Teil des Content-Streams), kein separates Bild-Overlay. Sie
+      sind damit exakt so fest im Dokument verankert wie von Hand
+      gezeichnete Striche auf Papier.
+
+   KOORDINATEN-UMRECHNUNG:
+   Ein Punkt {x,y} in Z.annotationen ist die tatsächliche Position
+   innerhalb des Zeichen-Canvas (Canvas-interne Pixel, DPR-skaliert).
+   Die Größe dieses Canvas in CSS-Pixeln ist unabhängig von DPR immer
+   Z.viewports[seite].breite/hoehe (W/H). Der Anteil eines Punktes an
+   der Seitenbreite/-höhe ist daher schlicht x/W bzw. y/H - unabhängig
+   von DPR oder Zoom. Multipliziert mit der echten PDF-Seitengröße
+   (in PDF-Punkten, aus pdf-lib) ergibt das die exakte Export-Position.
+   Die Y-Achse wird dabei gespiegelt, da PDF-Koordinaten von unten
+   nach oben laufen, Canvas-Koordinaten von oben nach unten.
 ==================================================================== */
+
+/** Wandelt einen Hex-Farbcode ('#1a3a6b' oder '#fff') in normierte RGB-Werte (0-1) für pdf-lib um. */
+function hexZuRgbNormiert(hex) {
+  let h = hex.replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const zahl = parseInt(h, 16);
+  return {
+    r: ((zahl >> 16) & 255) / 255,
+    g: ((zahl >> 8)  & 255) / 255,
+    b: (zahl & 255) / 255,
+  };
+}
+
+const EXPORT_DASH_MUSTER = {
+  solid:      null,
+  dashed:     [4, 2.5],
+  dotted:     [0.5, 2.5],
+  'dash-dot': [5, 2, 0.5, 2],
+};
+
+/**
+ * Zeichnet einen einzelnen gespeicherten Strich direkt in den
+ * PDF-Seiteninhalt. Freihand-Striche (Stift, Textmarker) werden als
+ * Folge kurzer gerader Segmente zwischen den aufgezeichneten Punkten
+ * gezeichnet - bei der üblichen Abtastrate beim Zeichnen sieht das
+ * praktisch identisch zur weichen Live-Vorschau aus, ist aber deutlich
+ * robuster und einfacher zu kontrollieren als exportierte Bézier-Pfade.
+ */
+function strichInPdfZeichnen(pdfSeite, strich, W, H, pdfB, pdfH) {
+  const { r, g, b } = hexZuRgbNormiert(strich.farbe);
+  const farbe = PDFLib.rgb(r, g, b);
+  const skalaX = pdfB / W;
+  const skalaY = pdfH / H;
+  const skala  = (skalaX + skalaY) / 2; // für Linienbreite/Dash-Länge (X/Y praktisch identisch)
+
+  const umrechnen = (p) => ({ x: p.x * skalaX, y: pdfH - p.y * skalaY });
+
+  if (strich.werkzeug === 'gerade-linie') {
+    const [von, bis] = strich.punkte;
+    const muster = EXPORT_DASH_MUSTER[strich.linienstil ?? 'solid'];
+    pdfSeite.drawLine({
+      start: umrechnen(von),
+      end:   umrechnen(bis),
+      thickness: strich.breite * skala,
+      color: farbe,
+      opacity: 1,
+      dashArray: muster ? muster.map(w => w * strich.breite * skala) : undefined,
+      lineCap: PDFLib.LineCapStyle.Round,
+    });
+    return;
+  }
+
+  if (!strich.punkte || strich.punkte.length < 2) return;
+  const deckkraft = strich.werkzeug === 'textmarker'
+    ? (strich.alpha ?? KONFIGURATION.TEXTMARKER_ALPHA)
+    : 1;
+
+  for (let i = 0; i < strich.punkte.length - 1; i++) {
+    pdfSeite.drawLine({
+      start: umrechnen(strich.punkte[i]),
+      end:   umrechnen(strich.punkte[i + 1]),
+      thickness: strich.breite * skala,
+      color: farbe,
+      opacity: deckkraft,
+      lineCap: PDFLib.LineCapStyle.Round,
+    });
+  }
+}
+
 async function pdfSpeichern() {
-  if (!Z.pdfBytes) { toast('Keine PDF geladen.','fehler'); return; }
-  ladeAnzeige(true,'PDF wird gespeichert...');
+  if (!Z.pdfBytes) { toast('Keine PDF geladen.', 'fehler'); return; }
+  ladeAnzeige(true, 'PDF wird gespeichert...');
   try {
-    const pdfDoc=await PDFLib.PDFDocument.load(Z.pdfBytes);
-    const seiten=pdfDoc.getPages();
-    for (let s=1;s<=Z.seitenAnzahl;s++) {
-      const pdfSeite=seiten[s-1], vp=Z.viewports[s]; if(!vp) continue;
-      const {width:pdfB,height:pdfH}=pdfSeite.getSize();
-      const zC=zeichenCanvas(s);
-      if (zC&&Z.annotationen[s]?.length) {
-        const bild=await pdfDoc.embedPng(base64ZuBytes(zC.toDataURL('image/png').split(',')[1]));
-        pdfSeite.drawImage(bild,{x:0,y:0,width:pdfB,height:pdfH,opacity:1});
+    const pdfDoc = await PDFLib.PDFDocument.load(Z.pdfBytes);
+    const seiten = pdfDoc.getPages();
+
+    for (let s = 1; s <= Z.seitenAnzahl; s++) {
+      const striche = Z.annotationen[s];
+      if (!striche?.length) continue;
+
+      const vp = Z.viewports[s];
+      const pdfSeite = seiten[s - 1];
+      if (!vp || !pdfSeite) continue; // Seite ohne Annotationen wurde nie gerendert - unkritisch
+
+      const { width: pdfB, height: pdfH } = pdfSeite.getSize();
+      for (const strich of striche) {
+        strichInPdfZeichnen(pdfSeite, strich, vp.breite, vp.hoehe, pdfB, pdfH);
       }
+      // Kurze Pause zwischen Seiten, damit der Browser bei sehr vielen
+      // annotierten Seiten zwischendurch aufräumen kann.
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
-    pdfDoc.setCreator('EduLayer PWA'); pdfDoc.setModificationDate(new Date());
-    const name=`EduLayer_${zeitstempel()}.pdf`;
+
+    pdfDoc.setCreator('EduLayer PWA');
+    pdfDoc.setModificationDate(new Date());
+    const name = `EduLayer_${zeitstempel()}.pdf`;
     download(await pdfDoc.save(), name);
-    toast(`Gespeichert: ${name}`,'erfolg',3500);
-  } catch(err) {
-    console.error('[EduLayer] Speicherfehler:',err);
-    toast('Fehler beim Speichern.','fehler',4000);
+    toast(`Gespeichert: ${name}`, 'erfolg', 3500);
+  } catch (err) {
+    console.error('[EduLayer] Speicherfehler:', err);
+    toast('Fehler beim Speichern.', 'fehler', 4000);
   } finally { ladeAnzeige(false); }
 }
 
