@@ -1,13 +1,13 @@
 /**
- * ╔══════════════════════════════════════════════════════════════════╗
- * ║  EduLayer – Haupt-Anwendungslogik  (Version 6.1)                ║
- * ╚══════════════════════════════════════════════════════════════════╝
+ * /*==================================================================
+ *  *  EduLayer - Haupt-Anwendungslogik  (Version 6.1)                 *
+ *  *==================================================================
  *
  * ÄNDERUNGEN v6.1:
  *  - Flyout: position:fixed + flyoutPositionieren() behebt iOS-
  *    Safari overflow-clip-Bug (overflow-y:auto bricht overflow-x:visible)
  *  - Geodreieck: komplett neu gezeichnet als realistisches deutsches
- *    Schuldreieck (Winkelhalbkreis 0–90°, cm-Skalen auf 3 Seiten,
+ *    Schuldreieck (Winkelhalbkreis 0-90°, cm-Skalen auf 3 Seiten,
  *    5mm-Parallellinien, korrekte Winkelangaben)
  *  - transform-origin des Wrappers korrigiert: Drehpunkt = Spitze (0,0)
  *
@@ -37,9 +37,9 @@
 'use strict';
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    1. KONFIGURATION
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 const KONFIGURATION = {
   STIFT_DUENN_PX:    2,
   STIFT_DICK_PX:     6,
@@ -54,9 +54,9 @@ const KONFIGURATION = {
   STANDARD_FARBE:    '#1a3a6b',
 
   // Geodreieck (PNG-Basis)
-  // Bild ist 1280×640px → Seitenverhältnis 2:1 (Breite:Höhe)
+  // Bild ist 1280×640px -> Seitenverhältnis 2:1 (Breite:Höhe)
   // Darstellungsbreite entspricht 28cm reale Kantenlänge.
-  // Nullpunkt der Skala liegt bei x=50% (Bildmitte), y≈90% (etwas über
+  // Nullpunkt der Skala liegt bei x=50% (Bildmitte), y~=90% (etwas über
   // der reinen Bildunterkante, da unten ein kleiner cm-Lineal-Rand ist).
   // Spitze (90°-Winkel) liegt bei x=50%, y=0.
   GEO_SEITENVERHAELTNIS: 0.5,  // Höhe / Breite des PNGs
@@ -76,7 +76,7 @@ const KONFIGURATION = {
   ZOOM_SCHRITT:      0.2,
 
   // Zeichenqualität für Leinwand-Präsentation
-  // DPR: devicePixelRatio – auf Retina/iPad=2, normaler Bildschirm=1.
+  // DPR: devicePixelRatio - auf Retina/iPad=2, normaler Bildschirm=1.
   // Das Zeichen-Canvas wird intern mit DPR-facher Auflösung gerendert,
   // sodass Striche auf dem Beamer pixelscharf bleiben.
   ZEICHEN_DPR:       Math.min(window.devicePixelRatio || 1, 3),
@@ -90,9 +90,9 @@ const KONFIGURATION = {
 };
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    2. ZUSTAND
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 const Z = {
   werkzeug:        'stift-duenn',
   strichfarbe:     KONFIGURATION.STANDARD_FARBE,
@@ -116,7 +116,7 @@ const Z = {
   pxProCm:         {},
 
   annotationen:    {},
-  undoVerlauf:     {},   // { seite: [ [strich, strich, ...] ] } – Strich-Arrays, keine Pixel-Snapshots
+  undoVerlauf:     {},   // { seite: [ [strich, strich, ...] ] } - Strich-Arrays, keine Pixel-Snapshots
   redoVerlauf:     {},   // gleiche Struktur wie undoVerlauf
 
   notizenProSeite: {},
@@ -159,9 +159,9 @@ const Z = {
 };
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    3. DOM-REFERENZEN
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 const D = {
   html:              document.documentElement,
   body:              document.body,
@@ -267,9 +267,9 @@ const D = {
 };
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    4. HILFSFUNKTIONEN
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 
 function toast(text, typ = 'info', ms = 2400) {
   const el = D.toast;
@@ -279,7 +279,7 @@ function toast(text, typ = 'info', ms = 2400) {
   toast._t = setTimeout(() => el.classList.remove('sichtbar'), ms);
 }
 
-function ladeAnzeige(an, text = 'Laden…') {
+function ladeAnzeige(an, text = 'Laden...') {
   D.ladeOverlay.style.display = an ? 'flex' : 'none';
   D.ladeOverlay.setAttribute('aria-hidden', an ? 'false' : 'true');
   D.ladeText.textContent = text;
@@ -291,7 +291,7 @@ function koordinaten(e, canvas) {
   if (e.touches?.length > 0)             { cx = e.touches[0].clientX;        cy = e.touches[0].clientY; }
   else if (e.changedTouches?.length > 0) { cx = e.changedTouches[0].clientX; cy = e.changedTouches[0].clientY; }
   else                                   { cx = e.clientX;                    cy = e.clientY; }
-  // canvas.width ist DPR-hochskaliert, rect.width ist CSS-Pixel →
+  // canvas.width ist DPR-hochskaliert, rect.width ist CSS-Pixel ->
   // der Skalierungsfaktor berücksichtigt beides korrekt.
   return {
     x: (cx - rect.left) * (canvas.width  / rect.width),
@@ -304,19 +304,19 @@ function koordinaten(e, canvas) {
  * Reduziert Finger-Zitter deutlich ohne sichtbare Verzögerung.
  * Muss bei jedem touchstart zurückgesetzt werden (letzterPunktGegl=null).
  *
- * Formel: p_out = α × p_roh + (1−α) × p_vorher
- * α = KONFIGURATION.GLAETTUNG_ALPHA (0.35)
+ * Formel: p_out = alpha × p_roh + (1-alpha) × p_vorher
+ * alpha = KONFIGURATION.GLAETTUNG_ALPHA (0.35)
  */
 function koordinatenGegl(rohPunkt) {
-  const α = KONFIGURATION.GLAETTUNG_ALPHA;
+  const alpha = KONFIGURATION.GLAETTUNG_ALPHA;
   if (!Z.letzterPunktGegl) {
     // Beim ersten Punkt: kein Vorwert, direkt übernehmen
     Z.letzterPunktGegl = { ...rohPunkt };
     return { ...rohPunkt };
   }
   const gegl = {
-    x: α * rohPunkt.x + (1 - α) * Z.letzterPunktGegl.x,
-    y: α * rohPunkt.y + (1 - α) * Z.letzterPunktGegl.y,
+    x: alpha * rohPunkt.x + (1 - alpha) * Z.letzterPunktGegl.x,
+    y: alpha * rohPunkt.y + (1 - alpha) * Z.letzterPunktGegl.y,
   };
   Z.letzterPunktGegl = gegl;
   return gegl;
@@ -401,9 +401,9 @@ function geradeLinieZeichnen(ctx, von, bis, farbe, breite, linienstil) {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    5. THEMA
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 function themaWechseln(thema) {
   Z.thema = thema;
   D.html.dataset.thema = thema;
@@ -463,9 +463,9 @@ function linealEinstellungenLaden() {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    6. FLYOUT-UNTERMENÜS
-   ─────────────────────────────────────────────────────────────────
+   -----------------------------------------------------------------
    FIX: Flyouts sind position:fixed. Die Funktion flyoutPositionieren()
    berechnet die korrekte Position relativ zum auslösenden Button per
    getBoundingClientRect() und setzt left/top direkt am Element.
@@ -475,12 +475,12 @@ function linealEinstellungenLaden() {
    Alle position:absolute Kinder werden dann geclippt.
    Mit position:fixed liegt das Flyout außerhalb des Scroll-Stacking-
    Kontexts und ist immer sichtbar.
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 
 /**
  * Positioniert ein Flyout-Element (position:fixed) neben dem auslösenden Button.
- * @param {HTMLElement} flyout  – das Flyout-Element
- * @param {HTMLElement} button  – der auslösende Button
+ * @param {HTMLElement} flyout  - das Flyout-Element
+ * @param {HTMLElement} button  - der auslösende Button
  */
 function flyoutPositionieren(flyout, button) {
   // Flyout kurz sichtbar machen um seine Größe zu messen
@@ -497,10 +497,10 @@ function flyoutPositionieren(flyout, button) {
   let left, top;
 
   if (sidebarSeite === 'right') {
-    // Sidebar rechts → Flyout öffnet nach LINKS vom Button
+    // Sidebar rechts -> Flyout öffnet nach LINKS vom Button
     left = btnRect.left - flyoutB - 6;
   } else {
-    // Sidebar links → Flyout öffnet nach RECHTS vom Button
+    // Sidebar links -> Flyout öffnet nach RECHTS vom Button
     left = btnRect.right + 6;
   }
 
@@ -566,7 +566,7 @@ const WERKZEUG_ICONS = {
               fill="currentColor" opacity="0.45" stroke="none"/>`,
     label: 'Marker',
   },
-  // Gerade Linie – Icon zeigt je nach aktuellem Linienstil das passende Dash-Muster
+  // Gerade Linie - Icon zeigt je nach aktuellem Linienstil das passende Dash-Muster
   'gerade-linie-solid': {
     svg: `<line x1="3" y1="12" x2="21" y2="12" stroke-width="2" stroke-linecap="round"/>
           <line x1="3" y1="6" x2="21" y2="6" stroke-width="0.8" opacity="0.4"/>`,
@@ -678,9 +678,9 @@ function fokusModusSetzen(modus) {
 function fokusModusAus() { fokusModusSetzen('aus'); }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    7. EINSTELLUNGSMENÜ
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 function einstellungenOeffnen() {
   Z.einstellungenOffen = true;
   D.einstellungenOverlay.style.display = 'block';
@@ -764,14 +764,14 @@ function einstellungenInit() {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    8. NOTIZEN-PANEL
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 const VORLAGEN = {
-  lernziele:       'Lernziele dieser Stunde:\n• \n• \n• ',
+  lernziele:       'Lernziele dieser Stunde:\n- \n- \n- ',
   aufgaben:        'Aufgaben:\n1. \n2. \n3. ',
-  material:        'Benötigtes Material:\n• Schulbuch S. \n• Arbeitsblatt: \n• ',
-  differenzierung: 'Differenzierung:\n▲ Erweiterung: \n● Standard: \n▼ Unterstützung: ',
+  material:        'Benötigtes Material:\n- Schulbuch S. \n- Arbeitsblatt: \n- ',
+  differenzierung: 'Differenzierung:\n^ Erweiterung: \no Standard: \nv Unterstützung: ',
 };
 
 function notizenOeffnen() {
@@ -836,10 +836,10 @@ function notizenInit() {
     toast('Notiz gelöscht.', 'info');
   });
   D.btnNotizenExportieren.addEventListener('click', () => {
-    let inhalt = `EduLayer – Lehrer-Notizen\nExportiert: ${new Date().toLocaleString('de-DE')}\n${'═'.repeat(40)}\n\n`;
+    let inhalt = `EduLayer - Lehrer-Notizen\nExportiert: ${new Date().toLocaleString('de-DE')}\n${'='.repeat(40)}\n\n`;
     for (let s = 1; s <= (Z.seitenAnzahl||1); s++) {
       const n = Z.notizenProSeite[s];
-      if (n?.trim()) inhalt += `── Seite ${s} ──\n${n}\n\n`;
+      if (n?.trim()) inhalt += `-- Seite ${s} --\n${n}\n\n`;
     }
     if (inhalt.split('\n').length <= 5) { toast('Keine Notizen vorhanden.', 'info'); return; }
     download(new TextEncoder().encode(inhalt), `EduLayer_Notizen_${zeitstempel()}.txt`, 'text/plain;charset=utf-8');
@@ -848,9 +848,9 @@ function notizenInit() {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    9. SIDEBAR-LOGIK
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 function werkzeugWaehlen(name) {
   if (Z.fokusModus === 'laser' && name !== 'laser') {
     Z.fokusModus = 'aus';
@@ -972,22 +972,22 @@ function sidebarInit() {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    10. SCROLL-MODUS
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 function scrollModusUmschalten() {
   const war = Z.modus === 'scrollen';
   Z.modus = war ? 'zeichnen' : 'scrollen';
   D.body.classList.toggle('scroll-modus', !war);
   D.body.dataset.modus = Z.modus;
   D.btnModusWechsel.setAttribute('aria-pressed', war ? 'false' : 'true');
-  toast(war ? 'Zeichnen aktiv' : 'Scroll-Modus – Finger scrollt das PDF', 'info', 1800);
+  toast(war ? 'Zeichnen aktiv' : 'Scroll-Modus - Finger scrollt das PDF', 'info', 1800);
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    11. ZEICHEN-ENGINE
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 
 /**
  * Kombinierter Snap-Helfer: prüft Geodreieck- und Lineal-Snap und
@@ -1064,7 +1064,7 @@ function strichStarten(e, canvas) {
       punkte: [{ ...p }], farbe: Z.strichfarbe,
       breite: Z.strichbreite, werkzeug: Z.werkzeug,
     };
-    // Kein harter Punkt beim Start – der erste Strich in strichBewegen
+    // Kein harter Punkt beim Start - der erste Strich in strichBewegen
     // beginnt sofort mit einer weichen Linie, was sauberer aussieht.
   } else {
     Z.aktuellerStrich = null;
@@ -1247,9 +1247,9 @@ function stricheZeichnen(ctx, striche) {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    12. LASERPOINTER
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 function laserCanvasAnpassen() {
   D.laserCanvas.width = window.innerWidth; D.laserCanvas.height = window.innerHeight;
 }
@@ -1299,14 +1299,14 @@ function laserModeAus() {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    13. UNDO / REDO  (strich-basiert, kein toDataURL/Pixel-Snapshot)
-   ─────────────────────────────────────────────────────────────────
+   -----------------------------------------------------------------
    Statt Canvas-Snapshots als Base64-PNG (~4MB pro Snapshot × 30 × Seiten)
    speichern wir nur einen Integer-Index: die Anzahl der Striche vor
    diesem Schritt. Undo schneidet annotationen[seite] auf diesen Index
    zurück und zeichnet den Canvas neu. Das spart 99% Speicher.
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 function undoSnapshot(seite) {
   if (!Z.undoVerlauf[seite]) Z.undoVerlauf[seite] = [];
   if (!Z.redoVerlauf[seite]) Z.redoVerlauf[seite] = [];
@@ -1377,16 +1377,16 @@ function seiteLeeren() {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    14. GEODREIECK (PNG-Basis)
-   ─────────────────────────────────────────────────────────────────
+   -----------------------------------------------------------------
    Statt eines selbstgezeichneten SVGs wird ein realistisches PNG-Bild
    eines deutschen Schuldreiecks verwendet (icons/geodreieck.png).
 
    Koordinatensystem des Wrappers:
      - transform-origin: 50% 100% (Mitte der Unterkante = Drehpunkt)
      - Bildbreite = 28cm reale Kantenlänge (volle PNG-Breite)
-     - Bildhöhe = Breite × GEO_SEITENVERHAELTNIS (0.5 → 2:1-Verhältnis)
+     - Bildhöhe = Breite × GEO_SEITENVERHAELTNIS (0.5 -> 2:1-Verhältnis)
      - Spitze (90°-Winkelpunkt) liegt bei x = 50% der Bildbreite, y = 0
      - Nullpunkt der Skala (für Snap-Berechnung) liegt bei
        x = 50%, y = GEO_NULLPUNKT_Y_ANTEIL × Bildhöhe
@@ -1398,7 +1398,7 @@ function seiteLeeren() {
      Unten-Rechts UR = (B, H)
    (B = Bildbreite in px, H = Bildhöhe in px, im Client-Koordinatensystem
    nach Skalierung/Rotation)
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 
 function geodreieckAn() {
   Z.geodreieckAktiv = true;
@@ -1426,7 +1426,7 @@ function geodreieckUmschalten() { Z.geodreieckAktiv ? geodreieckAus() : geodreie
  * Skalierung: Bildbreite = GEO_CM_LAENGE × pxProCm × zoom
  *
  * MASS-GENAUIGKEIT (1cm Geodreieck = 1cm PDF):
- * ─────────────────────────────────────────────────────────────────
+ * -----------------------------------------------------------------
  * Das PDF wird mit canvas.width = canvas.style.width gerendert
  * (1 interner Pixel = 1 CSS-Pixel, kein HiDPI-Downscaling). Damit
  * gilt für jede Seite:
@@ -1437,14 +1437,14 @@ function geodreieckUmschalten() { Z.geodreieckAktiv ? geodreieckAus() : geodreie
  * Die sichtbare Größe des PDFs auf dem Bildschirm bei einem
  * bestimmten Zoom ist: pxProCm × Z.zoom (weil .zoom-scaler mit
  * transform:scale(Z.zoom) skaliert wird). Das Geodreieck wird mit
- * exakt derselben Formel skaliert → beide Maßstäbe sind also
+ * exakt derselben Formel skaliert -> beide Maßstäbe sind also
  * rechnerisch identisch, unabhängig vom Zoom-Level.
  *
  * KALIBRIERUNG DES PNG-BILDES:
  * Voraussetzung ist, dass das PNG selbst maßstabsgetreu ist:
  *   - Die volle Bildbreite muss exakt GEO_CM_LAENGE (28cm) entsprechen
  *   - Das Seitenverhältnis (Höhe/Breite) muss GEO_SEITENVERHAELTNIS
- *     entsprechen (aktuell 0.5 → 2:1)
+ *     entsprechen (aktuell 0.5 -> 2:1)
  * Falls ein anderes PNG verwendet wird, das nicht exakt 28cm breit
  * gezeichnet ist (z.B. weil es einen Rand/Schlagschatten enthält),
  * muss GEO_CM_LAENGE und/oder GEO_SEITENVERHAELTNIS in KONFIGURATION
@@ -1548,7 +1548,7 @@ function geodreieckKantenClient() {
 /**
  * Geodreieck-Interaktion: NUR zwei feste Griffe sind anfassbar
  * (Move-Griff in der Mitte, Dreh-Griff an der Spitze). Die gesamte
- * restliche Fläche – inklusive jeder Kante ohne Toleranz-Lücke –
+ * restliche Fläche - inklusive jeder Kante ohne Toleranz-Lücke -
  * blockiert nie ein Event, weil weder der Wrapper noch das Bild
  * pointer-events:all besitzen (siehe style.css). Dadurch ist kein
  * geometrischer Hit-Test mehr nötig: Klicks auf den Griffen werden
@@ -1629,13 +1629,13 @@ function _geoBewegen(cx, cy) {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    14b. LINEAL (eigenständiges Werkzeug, CSS/SVG-gezeichnet)
-   ─────────────────────────────────────────────────────────────────
+   -----------------------------------------------------------------
    Einfaches gerades Lineal mit cm/mm-Skala. Funktioniert nach
    demselben Prinzip wie das Geodreieck: ein Move-Griff in der Mitte,
    ein Dreh-Griff am rechten Ende, Balkenfläche und Kanten selbst
-   blockieren nie ein Event – Zeichnen entlang der Lineal-Kante
+   blockieren nie ein Event - Zeichnen entlang der Lineal-Kante
    funktioniert daher genau wie beim Geodreieck ohne Toleranz-Lücke.
 
    Koordinatensystem:
@@ -1643,7 +1643,7 @@ function _geoBewegen(cx, cy) {
      - Balkenbreite = linealLaengeCm × pxProCm × zoom (analog Geodreieck)
      - Die obere Kante (y=0 im Balken) ist die Zeichenkante; Snap
        erfolgt auf eine einzelne Linie statt drei Dreieckskanten.
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 
 function linealAn() {
   Z.linealAktiv = true;
@@ -1769,7 +1769,7 @@ function linealKanteClient() {
 }
 
 /**
- * Lineal-Interaktion: gleiche Logik wie beim Geodreieck – nur die
+ * Lineal-Interaktion: gleiche Logik wie beim Geodreieck - nur die
  * zwei festen Griffe (Move, Dreh) sind anfassbar, der Rest blockiert
  * nie ein Event.
  */
@@ -1846,9 +1846,9 @@ function _linealBewegen(cx, cy) {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    15. SPOTLIGHT
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 function spotlightAn(form) {
   Z.spotFenster = {
 
@@ -1943,9 +1943,9 @@ function spotlightInit() {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    16. ZOOM
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 function zoomSetzen(n) {
   Z.zoom = Math.min(KONFIGURATION.ZOOM_MAX, Math.max(KONFIGURATION.ZOOM_MIN, n));
   D.zoomScaler.style.transform       = `scale(${Z.zoom})`;
@@ -2010,11 +2010,11 @@ function zoomInit() {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    17. PDF-RENDERING
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 async function pdfLaden(datei) {
-  ladeAnzeige(true, 'PDF wird geöffnet…');
+  ladeAnzeige(true, 'PDF wird geöffnet...');
   try {
     const ab = await datei.arrayBuffer();
     Z.pdfBytes = new Uint8Array(ab);
@@ -2032,7 +2032,7 @@ async function pdfLaden(datei) {
     D.pdfContainer.style.display = 'flex';
 
     // Erste Seite sofort rendern für korrektes Layout
-    ladeAnzeige(true, `Seite 1 / ${Z.seitenAnzahl} wird geladen…`);
+    ladeAnzeige(true, `Seite 1 / ${Z.seitenAnzahl} wird geladen...`);
     await pdfSeiteRendern(1);
 
     // Restliche Seiten als Platzhalter anlegen (kein Canvas, sehr wenig Speicher)
@@ -2048,7 +2048,7 @@ async function pdfLaden(datei) {
     requestAnimationFrame(zoomZentrierungAktualisieren);
     if (Z.geodreieckAktiv) { geodreieckSkalieren(); }
     if (Z.linealAktiv) { linealSkalieren(); }
-    toast(`„${datei.name}" – ${Z.seitenAnzahl} Seiten`, 'erfolg');
+    toast(`"${datei.name}" - ${Z.seitenAnzahl} Seiten`, 'erfolg');
   } catch (err) {
     console.error('[EduLayer] PDF-Ladefehler:', err);
     toast('Fehler beim Laden der PDF.', 'fehler', 4000);
@@ -2069,7 +2069,7 @@ function seitePlatzhalterAnlegen(nr, breite, hoehe) {
   cont.innerHTML = `<div class="seite-platzhalter-label">Seite ${nr}</div>`;
   D.pdfContainer.appendChild(cont);
 
-  // Lazy-Load: sobald der Platzhalter sichtbar wird → echtes Rendern
+  // Lazy-Load: sobald der Platzhalter sichtbar wird -> echtes Rendern
   const observer = new IntersectionObserver(async (ee) => {
     for (const entry of ee) {
       if (entry.isIntersecting) {
@@ -2215,12 +2215,12 @@ async function seiteLazyRendern(nr) {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    18. PDF-EXPORT
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 async function pdfSpeichern() {
   if (!Z.pdfBytes) { toast('Keine PDF geladen.','fehler'); return; }
-  ladeAnzeige(true,'PDF wird gespeichert…');
+  ladeAnzeige(true,'PDF wird gespeichert...');
   try {
     const pdfDoc=await PDFLib.PDFDocument.load(Z.pdfBytes);
     const seiten=pdfDoc.getPages();
@@ -2244,9 +2244,9 @@ async function pdfSpeichern() {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    19. SERVICE WORKER
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 function swRegistrieren() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', async () => {
@@ -2256,7 +2256,7 @@ function swRegistrieren() {
         const w=reg.installing;
         w.addEventListener('statechange',()=>{
           if(w.state==='installed'&&navigator.serviceWorker.controller)
-            toast('Update verfügbar – Seite neu laden.','info',6000);
+            toast('Update verfügbar - Seite neu laden.','info',6000);
         });
       });
     } catch(e){console.warn('[EduLayer] SW:',e);}
@@ -2264,11 +2264,11 @@ function swRegistrieren() {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ===================================================================
    20. APP-START
-════════════════════════════════════════════════════════════════════ */
+==================================================================== */
 function appStart() {
-  console.log('[EduLayer] v6.1 startet…');
+  console.log('[EduLayer] v6.1 startet...');
 
   laserCanvasAnpassen();
   themaLaden();
