@@ -1952,11 +1952,67 @@ function zoomInit() {
 /* ===================================================================
    17. PDF-RENDERING
 ==================================================================== */
+
+/**
+ * Foto-Scans landen als PDF manchmal mit Seitenmaßen, die den
+ * Foto-Pixelmaßen entsprechen statt normalen PDF-Punkten (z.B. 3000×4000
+ * statt ~600×800 bei A4). Bei einem festen Render-Faktor (PDF_SCALE)
+ * kann eine einzelne solche Seite dann ein Canvas verlangen, das die
+ * Größenlimits von iOS Safari sprengt (4096×4096 px bzw. 16,7 Mio.
+ * Pixel Gesamtfläche) - unabhängig von Seitenzahl oder Dateigröße.
+ *
+ * Diese Funktion normalisiert Seiten, deren längere Kante eine
+ * großzügige Schwelle überschreitet (deutlich über jedem gängigen
+ * Papierformat bis A3), auf ein Maß nahe A4. page.scale() skaliert
+ * dabei sowohl die deklarierte Seitengröße als auch den kompletten
+ * Seiteninhalt gleichmäßig mit - visuell ändert sich nichts, nur die
+ * Seite ist danach nicht mehr übergroß.
+ *
+ * Gibt zurück, ob mindestens eine Seite verändert wurde.
+ */
+const PDF_NORMALISIERUNG = {
+  SCHWELLE_PUNKTE:   1400,  // ab dieser Kantenlänge gilt eine Seite als übergroß (A3 liegt bei ~1191)
+  ZIEL_MAX_PUNKTE:   842,   // Zielgröße für die längere Kante (~A4-Langseite)
+};
+
+function pdfSeitenNormalisieren(pdfDoc) {
+  let veraendert = false;
+  for (const seite of pdfDoc.getPages()) {
+    const { width, height } = seite.getSize();
+    const groessteKante = Math.max(width, height);
+    if (groessteKante > PDF_NORMALISIERUNG.SCHWELLE_PUNKTE) {
+      const faktor = PDF_NORMALISIERUNG.ZIEL_MAX_PUNKTE / groessteKante;
+      seite.scale(faktor, faktor);
+      veraendert = true;
+    }
+  }
+  return veraendert;
+}
+
 async function pdfLaden(datei) {
   ladeAnzeige(true, 'PDF wird geöffnet...');
   try {
     const ab = await datei.arrayBuffer();
-    Z.pdfBytes = new Uint8Array(ab);
+    let bytes = new Uint8Array(ab);
+
+    // Übergroße Seiten vor dem eigentlichen Laden normalisieren. Schlägt
+    // das fehl (z.B. ein PDF, das pdf-lib nicht verarbeiten kann), wird
+    // NICHT die ganze PDF blockiert - stattdessen wird mit dem Original
+    // weitergemacht und der Nutzer klar informiert, dass die Prüfung
+    // übersprungen wurde. Läuft die Normalisierung dagegen durch, war
+    // sie entweder unnötig (Seite schon unkritisch) oder erfolgreich -
+    // in beiden Fällen ohne Meldung, wie gewünscht.
+    try {
+      const normDoc = await PDFLib.PDFDocument.load(bytes);
+      if (pdfSeitenNormalisieren(normDoc)) {
+        bytes = await normDoc.save();
+      }
+    } catch (normErr) {
+      console.warn('[EduLayer] Seiten-Normalisierung übersprungen:', normErr);
+      toast('Seitenmaße konnten nicht geprüft werden - Original wird geladen.', 'fehler', 4500);
+    }
+
+    Z.pdfBytes = bytes;
     pdfjsLib.GlobalWorkerOptions.workerSrc = KONFIGURATION.PDFJS_WORKER;
     Z.pdfDokument  = await pdfjsLib.getDocument({ data: Z.pdfBytes.slice() }).promise;
     Z.seitenAnzahl = Z.pdfDokument.numPages;
