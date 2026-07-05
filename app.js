@@ -297,11 +297,18 @@ function koordinaten(e, canvas) {
   if (e.touches?.length > 0)             { cx = e.touches[0].clientX;        cy = e.touches[0].clientY; }
   else if (e.changedTouches?.length > 0) { cx = e.changedTouches[0].clientX; cy = e.changedTouches[0].clientY; }
   else                                   { cx = e.clientX;                    cy = e.clientY; }
-  // canvas.width ist DPR-hochskaliert, rect.width ist CSS-Pixel ->
-  // der Skalierungsfaktor berücksichtigt beides korrekt.
+  // WICHTIG: Der Canvas-Context hat bereits ctx.scale(dpr, dpr) gesetzt
+  // (siehe seiteContainerAufbauen). Koordinaten, die an ctx.moveTo/lineTo
+  // übergeben werden, müssen deshalb bereits in diesem vor-skalierten
+  // Raum liegen - NICHT zusätzlich mit canvas.width/rect.width (das den
+  // DPR-Faktor ein zweites Mal einrechnen würde) multipliziert werden.
+  // canvas.width/rect.width entspricht dpr/zoom; da der Context den
+  // dpr-Anteil selbst übernimmt, wird hier nur noch durch dpr geteilt,
+  // sodass nur der Zoom-Anteil (1/zoom) übrig bleibt.
+  const dpr = KONFIGURATION.ZEICHEN_DPR;
   return {
-    x: (cx - rect.left) * (canvas.width  / rect.width),
-    y: (cy - rect.top)  * (canvas.height / rect.height),
+    x: (cx - rect.left) * (canvas.width  / rect.width) / dpr,
+    y: (cy - rect.top)  * (canvas.height / rect.height) / dpr,
   };
 }
 
@@ -1430,7 +1437,8 @@ function geodreieckSnap(e, canvas) {
     D.geoFuehrung.setAttribute('x2', best.x);
     D.geoFuehrung.setAttribute('y2', best.y);
     const rect = canvas.getBoundingClientRect();
-    const skalX = canvas.width/rect.width, skalY = canvas.height/rect.height;
+    const dpr = KONFIGURATION.ZEICHEN_DPR;
+    const skalX = (canvas.width/rect.width)/dpr, skalY = (canvas.height/rect.height)/dpr;
     return { x: (best.x-rect.left)*skalX, y: (best.y-rect.top)*skalY };
   }
   D.geoFuehrung.setAttribute('display', 'none');
@@ -1667,7 +1675,8 @@ function linealSnap(e, canvas) {
     D.geoFuehrung.setAttribute('x2', proj.x);
     D.geoFuehrung.setAttribute('y2', proj.y);
     const rect = canvas.getBoundingClientRect();
-    const skalX = canvas.width/rect.width, skalY = canvas.height/rect.height;
+    const dpr = KONFIGURATION.ZEICHEN_DPR;
+    const skalX = (canvas.width/rect.width)/dpr, skalY = (canvas.height/rect.height)/dpr;
     return { x: (proj.x-rect.left)*skalX, y: (proj.y-rect.top)*skalY };
   }
   D.geoFuehrung.setAttribute('display', 'none');
