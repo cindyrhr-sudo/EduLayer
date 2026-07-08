@@ -113,6 +113,7 @@ const Z = {
   letzterPunktGegl: null,  // exponential geglätteter Punkt für sanfte Striche
   aktuellerStrich: null,
   geradeLinieStart: null,     // Startpunkt für gerade Linie (Vorschau)
+  geradeLinieBasis: null,     // Basis-Snapshot vor Beginn der Linie (für billige Vorschau)
 
   modus:           'zeichnen',
   thema:           'dunkel',
@@ -1013,6 +1014,32 @@ function linealUndGeoSnap(e, canvas, fallbackPunkt) {
   return beste || fallbackPunkt;
 }
 
+/**
+ * Erfasst ein flaches Abbild des aktuellen Canvas-Standes (direktes
+ * Canvas-zu-Canvas drawImage, synchron, kein Bild-Umweg über
+ * toDataURL/Image). Wird einmalig beim Start eines Strichs aufgerufen,
+ * NICHT bei jedem Bewegungs-Event - das ist der entscheidende
+ * Unterschied zu einem vollständigen Neuzeichnen aus den Daten.
+ */
+function vorschauBasisErfassen(canvas) {
+  const basis = document.createElement('canvas');
+  basis.width = canvas.width; basis.height = canvas.height;
+  basis.getContext('2d').drawImage(canvas, 0, 0);
+  return basis;
+}
+
+/**
+ * Spielt einen zuvor erfassten Basis-Snapshot zurück - eine einzige,
+ * billige drawImage-Operation, unabhängig davon wie viele Striche
+ * bereits auf der Seite existieren. Wird bei jedem Bewegungs-Event
+ * während einer Vorschau (gerade Linie, Textmarker) aufgerufen.
+ */
+function vorschauBasisWiederherstellen(ctx, canvas, basis) {
+  const dpr = KONFIGURATION.ZEICHEN_DPR;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(basis, 0, 0, canvas.width / dpr, canvas.height / dpr);
+}
+
 function strichStarten(e, canvas) {
   if (Z.modus === 'scrollen') return;
   if (e.touches?.length > 1)  return;
@@ -1033,6 +1060,7 @@ function strichStarten(e, canvas) {
 
   if (Z.werkzeug === 'gerade-linie') {
     Z.geradeLinieStart = { ...p };
+    Z.geradeLinieBasis = vorschauBasisErfassen(canvas);
     Z.aktuellerStrich = null;
     return;
   }
@@ -1052,6 +1080,7 @@ function strichStarten(e, canvas) {
       breite: Z.strichbreite, werkzeug: 'textmarker',
       alpha: KONFIGURATION.TEXTMARKER_ALPHA,
       offCanvas: off, offCtx,
+      basisSnapshot: vorschauBasisErfassen(canvas),
     };
     if (!Z.annotationen[seite]) Z.annotationen[seite] = [];
   } else {
@@ -1079,14 +1108,12 @@ function strichBewegen(e, canvas) {
   p = koordinatenGegl(p);           // Exponential-Glättung gegen Finger-Zitter
   p = linealUndGeoSnap(e, canvas, p);
 
-  // Gerade Linie: Vorschau während des Ziehens.
-  // canvasNeuZeichnen() baut den Canvas synchron aus Z.annotationen auf
-  // (kein Bild-Umweg, keine Race Condition) - darüber wird die
-  // Vorschaulinie gelegt.
-  if (Z.werkzeug === 'gerade-linie' && Z.geradeLinieStart) {
-    const seite = +canvas.closest('.seite-container').dataset.seite;
-    canvasNeuZeichnen(seite);
+  // Gerade Linie: Vorschau während des Ziehens. Der beim Start erfasste
+  // Basis-Snapshot wird billig zurückgespielt (eine drawImage-Operation,
+  // unabhängig von der Strichzahl), darüber die Vorschaulinie gelegt.
+  if (Z.werkzeug === 'gerade-linie' && Z.geradeLinieStart && Z.geradeLinieBasis) {
     const ctx = canvas.getContext('2d');
+    vorschauBasisWiederherstellen(ctx, canvas, Z.geradeLinieBasis);
     geradeLinieZeichnen(ctx, Z.geradeLinieStart, p, Z.strichfarbe, Z.strichbreite, Z.linienstil);
     Z.letzterPunkt = p;
     return;
@@ -1098,11 +1125,22 @@ function strichBewegen(e, canvas) {
     offCtx.moveTo(Z.letzterPunkt.x, Z.letzterPunkt.y);
     offCtx.lineTo(p.x, p.y);
     offCtx.stroke();
-    const seite = +canvas.closest('.seite-container').dataset.seite;
-    canvasNeuZeichnen(seite);
     const ctx = canvas.getContext('2d');
+    // Basis-Snapshot (Stand vor diesem Strich) zurückspielen statt bei
+    // jedem Bewegungs-Event alle vorhandenen Striche neu aus den Daten
+    // zu zeichnen - letzteres hat für jeden vorhandenen Textmarker-
+    // Strich ein eigenes seitengroßes Offscreen-Canvas alloziert und
+    // bei mehreren Markierungen zuverlässig zum Absturz geführt.
+    vorschauBasisWiederherstellen(ctx, canvas, Z.aktuellerStrich.basisSnapshot);
+    const dpr = KONFIGURATION.ZEICHEN_DPR;
+    // WICHTIG: ctx hat bereits ctx.scale(dpr,dpr) gesetzt. drawImage()
+    // ohne explizite Zielgröße würde die natürlichen Pixelmaße des
+    // Offscreen-Canvas (= Device-Pixel, also W*dpr) als Zielgröße
+    // verwenden und durch den Context-Scale ein zweites Mal
+    // hochskalieren - das versetzt und verzerrt den Marker. Deshalb
+    // hier explizit auf die CSS-Größe des Canvas zielen.
     ctx.globalAlpha = KONFIGURATION.TEXTMARKER_ALPHA;
-    ctx.drawImage(Z.aktuellerStrich.offCanvas, 0, 0);
+    ctx.drawImage(Z.aktuellerStrich.offCanvas, 0, 0, canvas.width / dpr, canvas.height / dpr);
     ctx.globalAlpha = 1;
     Z.aktuellerStrich.punkte.push({ ...p });
   } else {
@@ -1139,6 +1177,7 @@ function strichBeenden(e, canvas) {
       linienstil: Z.linienstil,
     });
     Z.geradeLinieStart = null;
+    Z.geradeLinieBasis = null;
     Z.letzterPunkt = null;
     return;
   }
@@ -1181,16 +1220,24 @@ function stricheZeichnen(ctx, striche) {
     if (s.werkzeug === 'gerade-linie') {
       geradeLinieZeichnen(ctx, s.punkte[0], s.punkte[1], s.farbe, s.breite, s.linienstil ?? 'solid');
     } else if (s.werkzeug === 'textmarker') {
+      const dpr = KONFIGURATION.ZEICHEN_DPR;
       const off = document.createElement('canvas');
       off.width = ctx.canvas.width; off.height = ctx.canvas.height;
       const offCtx = off.getContext('2d');
+      // Ohne diesen Scale würden die (bereits in CSS-Einheiten
+      // vorliegenden) Punkte nur einen 1/dpr-Bruchteil des
+      // device-pixel-großen Offscreen-Canvas füllen.
+      offCtx.scale(dpr, dpr);
       offCtx.lineCap = 'round'; offCtx.lineJoin = 'round';
       offCtx.lineWidth = s.breite; offCtx.strokeStyle = s.farbe;
       offCtx.beginPath(); offCtx.moveTo(s.punkte[0].x,s.punkte[0].y);
       for (let i=1;i<s.punkte.length;i++) offCtx.lineTo(s.punkte[i].x,s.punkte[i].y);
       offCtx.stroke();
       ctx.globalAlpha = s.alpha ?? KONFIGURATION.TEXTMARKER_ALPHA;
-      ctx.drawImage(off,0,0); ctx.globalAlpha = 1;
+      // Explizite Zielgröße in CSS-Einheiten - ctx hat selbst bereits
+      // scale(dpr,dpr) gesetzt (siehe koordinaten()-Fix weiter oben).
+      ctx.drawImage(off, 0, 0, ctx.canvas.width / dpr, ctx.canvas.height / dpr);
+      ctx.globalAlpha = 1;
     } else {
       ctx.globalCompositeOperation = 'source-over';
       ctx.strokeStyle = s.farbe; ctx.globalAlpha = 1;
