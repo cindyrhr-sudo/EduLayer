@@ -1,26 +1,23 @@
 /**
  * /*==================================================================
- *  *  EduLayer - Haupt-Anwendungslogik  (Version 7.0)                 *
+ *  *  EduLayer - Haupt-Anwendungslogik  (Version 7.1)                 *
  *  *==================================================================
  *
- * ÄNDERUNGEN v7.0 (Stabilitäts-Umbau):
- *  - Radierer komplett entfernt: war die einzige Stelle, an der Canvas-
- *    Pixel und Annotationsdaten auseinanderlaufen konnten. "Seite
- *    leeren" deckt den Bedarf im Präsentationskontext ab.
- *  - Undo/Redo gehärtet: Redo-Verlauf wird jetzt bei jeder neuen
- *    Zeichenaktion zuverlässig geleert; kaputte Bild-Vorschau bei
- *    gerader Linie/Textmarker durch synchronen Aufbau aus den
- *    Annotationsdaten ersetzt (canvasNeuZeichnen statt Image-Umweg).
- *  - Seiten-Virtualisierung: Seiten, die weit aus dem sichtbaren
- *    Bereich gescrollt sind, werden wieder zu leichten Platzhaltern
- *    zurückgebaut (Canvas-Speicher wird freigegeben). Annotationsdaten
- *    bleiben unabhängig vom Canvas-Zustand erhalten und werden beim
- *    erneuten Sichtbarwerden identisch wiederhergestellt.
- *  - PDF-Export komplett auf Vektor-Zeichnung umgestellt: Striche
- *    werden direkt aus den gespeicherten Punktdaten in den PDF-
- *    Seiteninhalt gezeichnet (pdf-lib drawLine), nicht mehr als
- *    Raster-Bild vom Canvas. Dadurch unabhängig vom Virtualisierungs-
- *    Zustand einer Seite und dauerhaft fest im Dokument verankert.
+ * ÄNDERUNGEN v7.1:
+ *  - Speichern-Dialog: download() nutzt jetzt die File System Access
+ *    API (showSaveFilePicker), wenn der Browser sie unterstützt
+ *    (Chrome/Edge Desktop + Android). Der Nutzer kann dann Ordner und
+ *    Dateiname frei wählen. Fallback auf den klassischen
+ *    <a download>-Mechanismus für Safari/Firefox/iOS, wo die Datei
+ *    weiterhin automatisch in den Standard-Download-Ordner wandert.
+ *  - Lehrer-Notizen werden beim PDF-Export unsichtbar als Metadaten
+ *    (PDF-Subject-Feld, JSON-kodiert) mitgespeichert - KEINE
+ *    zusätzlichen sichtbaren Seiten im Dokument. Öffnet man die
+ *    exportierte PDF später wieder in EduLayer, werden die Notizen
+ *    automatisch aus den Metadaten gelesen und ins Notizen-Panel
+ *    zurückgeschrieben. In anderen PDF-Programmen bleiben sie
+ *    unsichtbar (außer ggf. im rohen "Betreff"-Feld der
+ *    Dokumenteigenschaften).
  *
  * STRUKTUR:
  *  1.  KONFIGURATION
@@ -346,7 +343,44 @@ function zeichenCanvas(seite) {
   return document.querySelector(`.seite-container[data-seite="${seite}"] .zeichen-canvas`);
 }
 
-function download(daten, dateiname, mimeTyp = 'application/pdf') {
+/**
+ * Speichert Daten als Datei.
+ *
+ * Nutzt, wenn verfügbar, die File System Access API
+ * (window.showSaveFilePicker) für einen echten "Speichern unter"-
+ * Dialog, in dem Nutzer Ordner UND Dateiname frei wählen können
+ * (aktuell unterstützt von Chrome/Edge Desktop und Android-Chrome).
+ *
+ * Fällt der Browser das nicht unterstützt (Safari, Firefox, iOS)
+ * oder bricht der Nutzer den Dialog ab, wird auf den klassischen
+ * <a download>-Mechanismus zurückgefallen - die Datei landet dann
+ * automatisch im Standard-Download-Ordner des Browsers.
+ */
+async function download(daten, dateiname, mimeTyp = 'application/pdf') {
+  if (window.showSaveFilePicker) {
+    try {
+      const erweiterung = dateiname.includes('.')
+        ? '.' + dateiname.split('.').pop()
+        : '';
+      const handle = await window.showSaveFilePicker({
+        suggestedName: dateiname,
+        types: [{
+          description: mimeTyp === 'application/pdf' ? 'PDF-Dokument' : 'Datei',
+          accept: { [mimeTyp]: erweiterung ? [erweiterung] : [] },
+        }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(daten);
+      await writable.close();
+      return;
+    } catch (err) {
+      // Nutzer hat den Dialog abgebrochen -> kein Fallback, kein Fehler-Toast
+      if (err.name === 'AbortError') return;
+      console.warn('[EduLayer] showSaveFilePicker fehlgeschlagen, Fallback auf Download:', err);
+      // sonst: weiter zum Fallback unten
+    }
+  }
+
   const url = URL.createObjectURL(new Blob([daten], { type: mimeTyp }));
   Object.assign(document.createElement('a'), { href: url, download: dateiname }).click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
@@ -838,14 +872,14 @@ function notizenInit() {
     D.notizenTextarea.value = '';
     toast('Notiz gelöscht.', 'info');
   });
-  D.btnNotizenExportieren.addEventListener('click', () => {
+  D.btnNotizenExportieren.addEventListener('click', async () => {
     let inhalt = `EduLayer - Lehrer-Notizen\nExportiert: ${new Date().toLocaleString('de-DE')}\n${'='.repeat(40)}\n\n`;
     for (let s = 1; s <= (Z.seitenAnzahl||1); s++) {
       const n = Z.notizenProSeite[s];
       if (n?.trim()) inhalt += `-- Seite ${s} --\n${n}\n\n`;
     }
     if (inhalt.split('\n').length <= 5) { toast('Keine Notizen vorhanden.', 'info'); return; }
-    download(new TextEncoder().encode(inhalt), `EduLayer_Notizen_${zeitstempel()}.txt`, 'text/plain;charset=utf-8');
+    await download(new TextEncoder().encode(inhalt), `EduLayer_Notizen_${zeitstempel()}.txt`, 'text/plain;charset=utf-8');
     toast('Notizen exportiert.', 'erfolg');
   });
 }
@@ -2050,6 +2084,7 @@ async function pdfLaden(datei) {
   try {
     const ab = await datei.arrayBuffer();
     let bytes = new Uint8Array(ab);
+    let geladeneNotizen = {};
 
     // Übergroße Seiten vor dem eigentlichen Laden normalisieren. Schlägt
     // das fehl (z.B. ein PDF, das pdf-lib nicht verarbeiten kann), wird
@@ -2060,6 +2095,10 @@ async function pdfLaden(datei) {
     // in beiden Fällen ohne Meldung, wie gewünscht.
     try {
       const normDoc = await PDFLib.PDFDocument.load(bytes);
+      // Zuvor mit EduLayer exportierte Lehrer-Notizen (falls vorhanden)
+      // aus den unsichtbaren PDF-Metadaten auslesen, BEVOR eine mögliche
+      // Normalisierung das Dokument neu speichert.
+      geladeneNotizen = notizenAusPdfExtrahieren(normDoc) || {};
       if (pdfSeitenNormalisieren(normDoc)) {
         bytes = await normDoc.save();
       }
@@ -2075,6 +2114,7 @@ async function pdfLaden(datei) {
     Object.assign(Z, {
       annotationen:{}, undoVerlauf:{}, redoVerlauf:{},
       aktiveSeite:1, viewports:{}, pxProCm:{},
+      notizenProSeite: geladeneNotizen,
       gerenderteSeitenCanvas: new Set(), // welche Seiten haben bereits Canvas
     });
     zoomSetzen(1.0);
@@ -2099,18 +2139,20 @@ async function pdfLaden(datei) {
     requestAnimationFrame(zoomZentrierungAktualisieren);
     if (Z.geodreieckAktiv) { geodreieckSkalieren(); }
     if (Z.linealAktiv) { linealSkalieren(); }
-    toast(`"${datei.name}" - ${Z.seitenAnzahl} Seiten`, 'erfolg');
+
+    const notizAnzahl = Object.keys(geladeneNotizen).length;
+    toast(
+      notizAnzahl > 0
+        ? `"${datei.name}" - ${Z.seitenAnzahl} Seiten, ${notizAnzahl} Notiz(en) wiederhergestellt`
+        : `"${datei.name}" - ${Z.seitenAnzahl} Seiten`,
+      'erfolg'
+    );
   } catch (err) {
     console.error('[EduLayer] PDF-Ladefehler:', err);
     toast('Fehler beim Laden der PDF.', 'fehler', 4000);
   } finally { ladeAnzeige(false); }
 }
 
-/**
- * Legt einen Platzhalter-div für eine noch nicht gerenderte Seite an.
- * Kein Canvas, nur ein div mit korrekter Größe und einem Lade-Spinner.
- * Der IntersectionObserver löst das echte Rendern aus, sobald sichtbar.
- */
 /**
  * Legt einen Platzhalter-div für eine (noch) nicht gerenderte Seite an.
  * Kein Canvas, nur ein div mit korrekter Größe und Lade-Label - kostet
@@ -2288,12 +2330,12 @@ async function seiteLazyRendern(nr) {
 
 
 /* ===================================================================
-   18. PDF-EXPORT (Vektor-Zeichnung, kanvasunabhängig)
+   18. PDF-EXPORT (Vektor-Zeichnung, kanvasunabhängig + Notizen-Metadaten)
    -----------------------------------------------------------------
-   Striche werden NICHT mehr als Raster-Bild vom Zeichen-Canvas
-   exportiert, sondern direkt aus den in Z.annotationen gespeicherten
-   Punktdaten in den PDF-Seiteninhalt gezeichnet (page.drawLine aus
-   pdf-lib). Das hat zwei wichtige Vorteile:
+   Striche werden NICHT als Raster-Bild vom Zeichen-Canvas exportiert,
+   sondern direkt aus den in Z.annotationen gespeicherten Punktdaten
+   in den PDF-Seiteninhalt gezeichnet (page.drawLine aus pdf-lib).
+   Das hat zwei wichtige Vorteile:
 
    1. Der Export funktioniert unabhängig davon, ob eine Seite gerade
       als Canvas gerendert oder (durch die Seiten-Virtualisierung)
@@ -2304,7 +2346,16 @@ async function seiteLazyRendern(nr) {
       sind damit exakt so fest im Dokument verankert wie von Hand
       gezeichnete Striche auf Papier.
 
-   KOORDINATEN-UMRECHNUNG:
+   Die Lehrer-Notizen (Textfeld je Seite) werden NICHT als sichtbarer
+   Seiteninhalt gespeichert, sondern unsichtbar als JSON im PDF-
+   Subject-Feld (Metadaten). Öffnet man die exportierte PDF später
+   wieder in EduLayer, werden sie automatisch wieder ausgelesen und
+   ins Notizen-Panel geschrieben (siehe notizenAusPdfExtrahieren()
+   und ihr Aufruf in pdfLaden()). In anderen PDF-Programmen bleiben
+   sie unsichtbar bzw. nur im rohen Betreff-Feld der Metadaten
+   erkennbar - es entstehen keine zusätzlichen sichtbaren Seiten.
+
+   KOORDINATEN-UMRECHNUNG (für die Striche):
    Ein Punkt {x,y} in Z.annotationen ist die tatsächliche Position
    innerhalb des Zeichen-Canvas (Canvas-interne Pixel, DPR-skaliert).
    Die Größe dieses Canvas in CSS-Pixeln ist unabhängig von DPR immer
@@ -2315,6 +2366,27 @@ async function seiteLazyRendern(nr) {
    Die Y-Achse wird dabei gespiegelt, da PDF-Koordinaten von unten
    nach oben laufen, Canvas-Koordinaten von oben nach unten.
 ==================================================================== */
+
+// Markierungs-Präfix, damit wir unsere eigenen Notiz-Metadaten sicher
+// erkennen und nicht versehentlich ein "normales" Subject-Feld einer
+// fremden PDF als Notizdaten fehlinterpretieren.
+const NOTIZ_METADATEN_MARKER = 'EDULAYER_NOTIZEN_V1::';
+
+/** Liest die im PDF-Subject-Feld gespeicherten Notizen aus (falls vorhanden). */
+function notizenAusPdfExtrahieren(pdfDoc) {
+  try {
+    const subject = pdfDoc.getSubject();
+    if (!subject || !subject.startsWith(NOTIZ_METADATEN_MARKER)) return null;
+    const json = subject.slice(NOTIZ_METADATEN_MARKER.length);
+    const obj = JSON.parse(json);
+    const ergebnis = {};
+    for (const [seite, text] of Object.entries(obj)) ergebnis[+seite] = text;
+    return ergebnis;
+  } catch (err) {
+    console.warn('[EduLayer] Notizen-Metadaten konnten nicht gelesen werden:', err);
+    return null;
+  }
+}
 
 /** Wandelt einen Hex-Farbcode ('#1a3a6b' oder '#fff') in normierte RGB-Werte (0-1) für pdf-lib um. */
 function hexZuRgbNormiert(hex) {
@@ -2391,14 +2463,13 @@ async function pdfSpeichern() {
     const pdfDoc = await PDFLib.PDFDocument.load(Z.pdfBytes);
     const seiten = pdfDoc.getPages();
 
+    // --- Striche als Vektor-Linien direkt in den Seiteninhalt zeichnen ---
     for (let s = 1; s <= Z.seitenAnzahl; s++) {
       const striche = Z.annotationen[s];
       if (!striche?.length) continue;
-
       const vp = Z.viewports[s];
       const pdfSeite = seiten[s - 1];
       if (!vp || !pdfSeite) continue; // Seite ohne Annotationen wurde nie gerendert - unkritisch
-
       const { width: pdfB, height: pdfH } = pdfSeite.getSize();
       for (const strich of striche) {
         strichInPdfZeichnen(pdfSeite, strich, vp.breite, vp.hoehe, pdfB, pdfH);
@@ -2408,11 +2479,28 @@ async function pdfSpeichern() {
       await new Promise(resolve => setTimeout(resolve, 0));
     }
 
+    // --- Lehrer-Notizen unsichtbar als Metadaten einbetten ---
+    // Kein zusätzlicher sichtbarer Seiteninhalt: nur ein JSON-Objekt
+    // { seite: text } im PDF-Subject-Feld. Beim erneuten Öffnen in
+    // EduLayer (pdfLaden -> notizenAusPdfExtrahieren) wird daraus
+    // wieder Z.notizenProSeite befüllt.
+    const notizEintraege = {};
+    for (const [seite, text] of Object.entries(Z.notizenProSeite)) {
+      if (text?.trim()) notizEintraege[seite] = text;
+    }
+    const hatNotizen = Object.keys(notizEintraege).length > 0;
+    if (hatNotizen) {
+      pdfDoc.setSubject(NOTIZ_METADATEN_MARKER + JSON.stringify(notizEintraege));
+    }
+
     pdfDoc.setCreator('EduLayer PWA');
     pdfDoc.setModificationDate(new Date());
     const name = `EduLayer_${zeitstempel()}.pdf`;
-    download(await pdfDoc.save(), name);
-    toast(`Gespeichert: ${name}`, 'erfolg', 3500);
+    await download(await pdfDoc.save(), name);
+    toast(
+      hatNotizen ? `Gespeichert (mit Notizen): ${name}` : `Gespeichert: ${name}`,
+      'erfolg', 3500
+    );
   } catch (err) {
     console.error('[EduLayer] Speicherfehler:', err);
     toast('Fehler beim Speichern.', 'fehler', 4000);
@@ -2444,7 +2532,7 @@ function swRegistrieren() {
    20. APP-START
 ==================================================================== */
 function appStart() {
-  console.log('[EduLayer] v6.1 startet...');
+  console.log('[EduLayer] v7.1 startet...');
 
   laserCanvasAnpassen();
   themaLaden();
@@ -2502,7 +2590,7 @@ function appStart() {
     }, 350);
   });
 
-  console.log('[EduLayer] v6.1 bereit.');
+  console.log('[EduLayer] v7.1 bereit.');
 }
 
 if (document.readyState==='loading') {
