@@ -10,12 +10,20 @@
  *   um den Browser zu zwingen den neuen Cache zu laden.
  * - CACHE_RESSOURCEN: Liste aller Dateien die offline verfügbar
  *   sein sollen. Neue Dateien hier eintragen.
+ *
+ * ÄNDERUNG v2:
+ * - Icon-Dateien (Manifest-Icons, Apple-Touch-Icon, Favicon,
+ *   Geodreieck-PNG) sind jetzt explizit im Precache statt nur
+ *   optional dynamisch beim ersten Laden gecacht zu werden. Das
+ *   macht die Offline-Nutzung zuverlässiger, falls der allererste
+ *   Seitenaufruf aus irgendeinem Grund nicht jede Ressource
+ *   angefragt hat (z.B. bei sehr kurzem Online-Fenster).
  */
 
 'use strict';
 
 // ── Konfiguration ──────────────────────────────────────────────────
-const CACHE_VERSION  = 'edulayer-v1';
+const CACHE_VERSION  = 'edulayer-v2';
 
 // Alle Ressourcen die beim ersten Laden gecacht werden
 const CACHE_RESSOURCEN = [
@@ -24,6 +32,13 @@ const CACHE_RESSOURCEN = [
   './style.css',
   './app.js',
   './manifest.json',
+  // App-Icons (Manifest, Apple-Touch-Icon, Favicon)
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/apple-touch-icon.png',
+  './icons/favicon.ico',
+  // Geodreieck-Overlay-Bild
+  './icons/geodreieck.png',
   // CDN-Ressourcen werden ebenfalls gecacht
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
